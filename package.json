@@ -1,0 +1,21 @@
+{
+  "name": "dialogue-animator",
+  "version": "0.1.0",
+  "description": "Turn a folder with a dialogue (and optional voice, characters, music) into a 2D character animation video. Model- and agent-agnostic skill.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "da": "bin/da.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "doctor": "node bin/da.mjs doctor",
+    "example": "node bin/da.mjs make examples/cay-krizi"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.1.0"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/style-pack.schema.json",
+  "id": "kesik-kagit",
+  "name": "Kesik Kâğıt (Paper Cut)",
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "Cut-paper puppets: no outlines, layered paper shadows, slightly trembling cut edges, characters animated on twos while the camera moves on ones.",
+  "family": "paper",
+  "palette": {
+    "lockToPalette": true,
+    "roles": {
+      "paper": "#F3EBDD",
+      "ink": "#22304A",
+      "wall": "#9DB89A",
+      "wall2": "#F2B8A2",
+      "wall3": "#F3EBDD",
+      "floor": "#D9653B",
+      "floor2": "#2F7F7A",
+      "sky": "#F3EBDD",
+      "ground": "#2F7F7A",
+      "hill": "#9DB89A",
+      "accent1": "#E3A72F",
+      "accent2": "#2F7F7A",
+      "accent3": "#D9653B",
+      "light": "#F3EBDD",
+      "dark": "#22304A",
+      "glass": "#F3EBDD"
+    },
+    "characterColors": ["#E3A72F", "#2F7F7A", "#D9653B", "#9DB89A", "#22304A", "#F2B8A2"],
+    "skin": ["#F6D3B8", "#EBB48E", "#C98D62", "#94603E", "#5F3D2A"]
+  },
+  "line": { "mode": "none", "width": 0, "color": "ink" },
+  "shadow": { "offsetX": 6, "offsetY": 6, "blur": 0, "opacity": 0.22, "color": "ink" },
+  "edge": { "jitter": 1.5, "boilFrames": 4 },
+  "texture": { "type": "paper-grain", "amount": 0.035, "grainPx": 6 },
+  "character": { "body": "paper-cut", "headRatio": 0.38, "limbWidth": 58, "jointPins": true, "featureColor": "ink" },
+  "motion": {
+    "characterFps": 15,
+    "expressionFrames": 0,
+    "squash": 0.04,
+    "squashFrames": 2,
+    "overshoot": 0,
+    "breath": 0.012,
+    "breathHz": 0.3,
+    "blinkFrames": 4,
+    "blinkEvery": [2.2, 5.5],
+    "reactionLeadFrames": 4,
+    "gestureFrames": 6,
+    "headNodDeg": 2
+  },
+  "camera": {
+    "pushPerFrame": 0.0012,
+    "punchPushPerFrame": 0.0026,
+    "maxPanPxPerFrame": 18,
+    "rollDeg": 1.5,
+    "punchZoom": 0,
+    "shake": { "amp": 0, "frames": 7 },
+    "cutLeadFrames": 4
+  },
+  "transitions": {
+    "cut": { "type": "cut", "frames": 0 },
+    "scene": { "type": "paper-slide", "frames": 10 }
+  },
+  "captions": {
+    "font": { "family": "DA Baloo 2", "weight": 700 },
+    "word": { "size": 92, "fill": "paper", "bg": "ink", "padX": 34, "padY": 10, "y": 0.79, "pop": "step" },
+    "line": { "size": 58, "fill": "ink", "highlight": "accent3", "dim": 0.4, "y": 0.83, "maxWidth": 0.86, "maxLines": 2, "bg": "paper", "bgOpacity": 0.92 },
+    "bubble": { "size": 50, "fill": "paper", "bg": "ink", "maxWidth": 0.6 }
+  },
+  "fonts": [
+    { "family": "DA Baloo 2", "file": "../../fonts/baloo2/Baloo2-VF.ttf" },
+    { "family": "DA Noto Sans", "file": "../../fonts/notosans/NotoSans-VF.ttf", "fallback": true }
+  ],
+  "music": { "tempo": 92, "mood": "warm", "scale": "major", "lead": "kalimba" },
+  "limits": { "minTextContrast": 4.5, "maxColors": 7, "minLinePx": 0 }
+}

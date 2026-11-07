@@ -1,0 +1,82 @@
+{
+  "$schema": "../../schemas/style-pack.schema.json",
+  "id": "jole",
+  "name": "Jöle (Gummy Pop)",
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "Glossy candy blobs with one thick outline on a deep indigo night; bouncy squash-and-stretch, punch-in zooms, iris scene changes.",
+  "family": "gummy",
+  "palette": {
+    "lockToPalette": true,
+    "roles": {
+      "paper": "#1B1440",
+      "ink": "#120B2E",
+      "white": "#FFFFFF",
+      "wall": "#1B1440",
+      "wall2": "#2A1E5C",
+      "wall3": "#2A1E5C",
+      "floor": "#120B2E",
+      "floor2": "#120B2E",
+      "sky": "#1B1440",
+      "ground": "#120B2E",
+      "hill": "#2A1E5C",
+      "accent1": "#B6F03C",
+      "accent2": "#3CD6F0",
+      "accent3": "#FF4F8B",
+      "light": "#B79CFF",
+      "dark": "#120B2E",
+      "glass": "#3CD6F0"
+    },
+    "characterColors": ["#FF4F8B", "#3CD6F0", "#B6F03C", "#FF9A3C", "#B79CFF"],
+    "skin": ["#FFD2B8", "#F2A97E", "#C98D62", "#94603E", "#5F3D2A"],
+    "gradient": { "wall": ["#1B1440", "#2A1E5C"], "wall2": ["#2A1E5C", "#1B1440"], "wall3": ["#2A1E5C", "#1B1440"], "sky": ["#1B1440", "#2A1E5C"] }
+  },
+  "line": { "mode": "uniform", "width": 9, "color": "ink" },
+  "shadow": { "opacity": 0 },
+  "edge": { "jitter": 0, "boilFrames": 0 },
+  "texture": { "type": "gloss", "amount": 0.55 },
+  "character": { "body": "gummy", "headRatio": 0.6, "limbWidth": 60, "jointPins": false, "featureColor": "ink" },
+  "motion": {
+    "characterFps": 30,
+    "expressionFrames": 5,
+    "squash": 0.12,
+    "squashFrames": 4,
+    "overshoot": 0.5,
+    "springHz": 3,
+    "breath": 0,
+    "bob": 0.025,
+    "bobHz": 0.6,
+    "blinkFrames": 4,
+    "blinkEvery": [1.8, 4.5],
+    "reactionLeadFrames": 4,
+    "gestureFrames": 5,
+    "headNodDeg": 3
+  },
+  "camera": {
+    "pushPerFrame": 0.0025,
+    "punchPushPerFrame": 0.004,
+    "maxPanPxPerFrame": 40,
+    "rollDeg": 3,
+    "punchZoom": 0.08,
+    "punchFrames": 7,
+    "shake": { "amp": 14, "frames": 7 },
+    "cutLeadFrames": 4
+  },
+  "transitions": {
+    "cut": { "type": "cut", "frames": 0 },
+    "scene": { "type": "iris", "frames": 12 },
+    "speakerChange": { "type": "whip", "frames": 8 }
+  },
+  "captions": {
+    "font": { "family": "DA Baloo 2", "weight": 800 },
+    "word": { "size": 112, "fill": "white", "stroke": 20, "strokeColor": "ink", "y": 0.8, "pop": "spring", "uppercase": true, "padX": 12, "padY": 6 },
+    "line": { "size": 60, "fill": "white", "highlight": "accent1", "stroke": 12, "strokeColor": "ink", "dim": 0.45, "y": 0.84, "maxWidth": 0.88, "maxLines": 2 },
+    "bubble": { "size": 52, "fill": "ink", "bg": "white", "maxWidth": 0.62 }
+  },
+  "fonts": [
+    { "family": "DA Baloo 2", "file": "../../fonts/baloo2/Baloo2-VF.ttf" },
+    { "family": "DA Noto Sans", "file": "../../fonts/notosans/NotoSans-VF.ttf", "fallback": true }
+  ],
+  "music": { "tempo": 112, "mood": "playful", "scale": "major", "lead": "marimba" },
+  "limits": { "minTextContrast": 4.5, "maxColors": 9, "minLinePx": 6 }
+}

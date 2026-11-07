@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dialogue-animator/schemas/dialogue.schema.json",
+  "title": "build/dialogue.json",
+  "description": "Parsed dialogue. Agents may edit emotion, gesture or scene settings here before running `da board`.",
+  "type": "object",
+  "required": ["title", "language", "speakers", "scenes", "lines"],
+  "properties": {
+    "title": { "type": "string" },
+    "language": { "type": "string" },
+    "source": { "type": "string" },
+    "speakers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "object", "required": ["id", "name"], "properties": { "id": { "type": "string" }, "name": { "type": "string" } } }
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "setting": { "type": ["string", "null"], "enum": [null, "kitchen", "cafe", "living-room", "office", "street", "park", "studio"] }
+        }
+      }
+    },
+    "lines": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "index", "speaker", "text", "emotion", "scene"],
+        "properties": {
+          "id": { "type": "string" },
+          "index": { "type": "integer", "minimum": 1 },
+          "speaker": { "type": "string" },
+          "speakerName": { "type": "string" },
+          "text": { "type": "string" },
+          "words": { "type": "array", "items": { "type": "string" } },
+          "emotion": { "enum": ["neutral", "happy", "laugh", "sad", "angry", "surprised", "scared", "thinking", "worried", "smug"] },
+          "emotionSource": { "type": "string" },
+          "triggerWord": { "type": ["integer", "null"] },
+          "gesture": { "type": ["string", "null"], "enum": [null, "wave", "point", "shrug", "facepalm", "cheer", "explain", "think", "nod"] },
+          "directions": { "type": "array", "items": { "type": "string" } },
+          "scene": { "type": "string" },
+          "pauseBefore": { "type": "number", "minimum": 0 },
+          "audio": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}

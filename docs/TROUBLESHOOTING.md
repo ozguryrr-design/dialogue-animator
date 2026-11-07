@@ -1,0 +1,37 @@
+# Troubleshooting and gotchas
+
+A growing list of real failures met while building and using this skill. When you hit a new one, add it in the same format: **symptom → cause → fix**.
+
+## Setup
+1. **`ffmpeg not found`**: install it (`winget install Gyan.FFmpeg`, `brew install ffmpeg`, `sudo apt install ffmpeg`), set `FFMPEG_PATH`, or `pip install imageio-ffmpeg`. `da doctor` lists everything it tried.
+2. **No `ffprobe`**: fine. Some installs (e.g. the imageio-ffmpeg wheel) ship ffmpeg only, so every duration comes from decoded sample counts. Never add an ffprobe dependency.
+3. **`@napi-rs/canvas` cannot load**: run `npm install` in the skill folder. On unusual platforms use `--renderer playwright` (docs/RENDERERS.md).
+4. **Squares instead of letters**: the style's fonts lack those characters. `da doctor <project>` prints them; add a covering font with `"fallback": true` (docs/STYLE_PACK.md).
+5. **A system font with the same family name wins** over the bundled one: bundled fonts are registered under aliases (`DA Baloo 2`, `DA Noto Sans`). Keep that prefix in custom packs. The variable fonts are used unmodified (OFL); `@napi-rs/canvas` honours their weight axis.
+
+## Timing and audio
+6. **Lines feel late or early** with one voice file: install `faster-whisper` or provide `words.json`. Silence detection can be ±0.3 s on soft onsets. Per-line files are always exact.
+7. **whisper on gibberish (babble) or music-heavy audio** gives useless words. Use per-line files for those.
+8. **Audio file mapped to the wrong line**: files are matched by their leading number. `align` warns when a file's name does not match the speaker.
+9. **True peak just above −1 dBTP in the mp4**: `loudnorm` in linear mode can overshoot slightly and AAC adds about 0.3 dB. The mix targets −2 dBTP and trims the whole mix if needed.
+
+## Picture
+10. **A close-up looks cropped in a contact sheet, but the full frame is fine**: small thumbnails exaggerate tightness. Check `da stills --t <s> --scale 1` before changing framing.
+11. **Eyebrows disappear under a fringe**: face features must be drawn after the front hair (fixed in all bodies).
+12. **Over-the-shoulder shot cuts the speaker's face** in portrait: the shift toward the listener is limited so the speaker's head (×1.35 margin) stays inside.
+13. **A group shot cuts the outermost character in 16:9**: the push-in of group shots is limited by the empty margin.
+14. **A hand covers the prop in a cutaway**: inserts draw the set only, no characters.
+15. **Two characters end up with the same hair or outfit colour** when the palette is small: snapping avoids colours already used. Hair keeps its lightness first (dark brown → ink, not a pastel).
+16. **A "?" or caption of the last line shows up in the next scene**: captions and reaction symbols are clipped at their scene's end.
+17. **A reaction symbol pops at the frame edge for an off-screen character**: symbols are drawn only for faces that are in frame.
+18. **One-syllable words flash for 4–5 frames** in word captions: short words travel with a neighbour, but never across a sentence end ("ol. Bir" was wrong).
+19. **Tiny features look chewed in the riso style**: line tremble on small shapes is scaled down (features get 15 % of the jitter).
+20. **Fine halftone or grain turns to mush** after H.264: keep the pitch ≥ 12 px at 1080 wide; use `-tune animation`.
+
+## QA
+21. **"Unplanned pop" right after an expression change**: the style's squash is intentional. QA treats expression, gesture, punch and shake frames as planned. A pop elsewhere is a real bug.
+22. **Characters on twos (15 fps) look frozen**: they are not. The camera still moves every frame; the frozen check only fires on ≥ 12 identical frames.
+
+## Repository / tooling
+23. **`spawnSync` fails with a negative `maxBuffer`** when the buffer size is computed as `1 << 31` (overflows to negative in JavaScript). Use `2 ** 32`.
+24. **Concat list paths on Windows**: write them with forward slashes and single quotes for ffmpeg's concat demuxer.

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dialogue-animator preview</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f4f2ee; --fg: #1d1d1b; --muted: #6b6a66; --line: #d8d5ce; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #18181a; --fg: #ecebe8; --muted: #9a9894; --line: #333; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; display: flex; gap: 24px; padding: 16px; flex-wrap: wrap; }
+  #stage { height: min(86vh, 1100px); max-width: 100%; aspect-ratio: 9 / 16; background: #000; border-radius: 8px; }
+  aside { flex: 1; min-width: 260px; max-width: 520px; }
+  input[type=range] { width: 100%; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+  button { font: inherit; padding: 4px 10px; }
+  #shots { max-height: 52vh; overflow: auto; border-top: 1px solid var(--line); margin-top: 8px; }
+  #shots div { padding: 3px 4px; border-bottom: 1px solid var(--line); cursor: pointer; color: var(--muted); }
+  #shots div.on { color: var(--fg); font-weight: 600; }
+  code { color: var(--muted); }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<aside>
+  <div id="title"><b>loading…</b></div>
+  <div class="row"><button id="play">Play</button><button id="reload">Reload (R)</button><label><input type="checkbox" id="sound" checked> sound</label><span id="time"></span></div>
+  <input id="scrub" type="range" min="0" value="0" step="1">
+  <div class="row"><code id="info"></code></div>
+  <div id="shots"></div>
+</aside>
+<audio id="audio" src="/audio" preload="auto"></audio>
+<script type="module">
+import { createEnv, renderFrame, shotIndexAt } from '/engine/render.mjs';
+const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
+const audio = document.getElementById('audio');
+let sb, style, env, frame = 0, playing = false, t0 = 0, f0 = 0;
+const createCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+
+async function load() {
+  sb = await (await fetch('/storyboard.json', { cache: 'no-store' })).json();
+  style = await (await fetch('/style.json', { cache: 'no-store' })).json();
+  await Promise.all(style.fonts.map(async (f) => { const ff = new FontFace(f.family, `url(${f.url})`); await ff.load(); document.fonts.add(ff); }));
+  env = createEnv(sb, style, { createCanvas });
+  const scale = Math.min(1, 960 / sb.video.height);
+  cv.width = Math.round(sb.video.width * scale); cv.height = Math.round(sb.video.height * scale);
+  cv.style.aspectRatio = `${sb.video.width} / ${sb.video.height}`;
+  document.getElementById('title').innerHTML = `<b>${sb.meta.title}</b> — style <code>${style.id}</code>, ${sb.video.width}×${sb.video.height} @ ${sb.video.fps} fps, ${sb.video.duration.toFixed(2)} s${sb.meta.estimatedTiming ? ' (timing estimated)' : ''}`;
+  const scrub = document.getElementById('scrub'); scrub.max = sb.video.frames - 1;
+  document.getElementById('shots').innerHTML = sb.shots.map((s, i) => `<div data-i="${i}">${s.id} ${s.start.toFixed(2)}–${s.end.toFixed(2)} <b>${s.type}</b> ${s.focus || s.prop || ''} — ${s.why || ''}</div>`).join('');
+  draw();
+}
+function draw() {
+  const t = frame / sb.video.fps;
+  ctx.setTransform(cv.width / sb.video.width, 0, 0, cv.height / sb.video.height, 0, 0);
+  renderFrame(ctx, env, t);
+  document.getElementById('scrub').value = frame;
+  document.getElementById('time').textContent = `f${frame} · ${t.toFixed(2)} s`;
+  const k = shotIndexAt(sb, t);
+  document.querySelectorAll('#shots div').forEach((d, i) => d.classList.toggle('on', i === k));
+  const line = sb.lines.find((l) => t >= l.start && t <= l.end);
+  document.getElementById('info').textContent = line ? `${line.speaker}: ${line.text} [${line.emotion}]` : '';
+}
+function loop() {
+  if (!playing) return;
+  const useAudio = document.getElementById('sound').checked && !audio.paused;
+  frame = Math.min(sb.video.frames - 1, useAudio ? Math.floor(audio.currentTime * sb.video.fps) : f0 + Math.floor(((performance.now() - t0) / 1000) * sb.video.fps));
+  draw();
+  if (frame >= sb.video.frames - 1) { playing = false; audio.pause(); document.getElementById('play').textContent = 'Play'; return; }
+  requestAnimationFrame(loop);
+}
+function toggle() {
+  playing = !playing;
+  document.getElementById('play').textContent = playing ? 'Pause' : 'Play';
+  if (playing) { t0 = performance.now(); f0 = frame; if (document.getElementById('sound').checked) { audio.currentTime = frame / sb.video.fps; audio.play().catch(() => {}); } requestAnimationFrame(loop); }
+  else audio.pause();
+}
+document.getElementById('play').onclick = toggle;
+document.getElementById('reload').onclick = load;
+document.getElementById('scrub').oninput = (e) => { frame = +e.target.value; if (playing) { t0 = performance.now(); f0 = frame; audio.currentTime = frame / sb.video.fps; } draw(); };
+document.getElementById('shots').onclick = (e) => { const i = e.target.closest('div')?.dataset.i; if (i !== undefined) { frame = Math.round(sb.shots[+i].start * sb.video.fps); draw(); } };
+addEventListener('keydown', (e) => {
+  if (e.key === ' ') { e.preventDefault(); toggle(); }
+  if (e.key === 'ArrowRight') { frame = Math.min(sb.video.frames - 1, frame + 1); draw(); }
+  if (e.key === 'ArrowLeft') { frame = Math.max(0, frame - 1); draw(); }
+  if (e.key === 'r' || e.key === 'R') load();
+});
+// Playwright adapter entry point: render one frame at full size and return a PNG data URL.
+window.__da = {
+  ready: () => !!env,
+  frame: (t, w, h) => {
+    if (cv.width !== w) { cv.width = w; cv.height = h; }
+    ctx.setTransform(w / sb.video.width, 0, 0, h / sb.video.height, 0, 0);
+    renderFrame(ctx, env, t);
+    return cv.toDataURL('image/png');
+  },
+};
+load().catch((e) => { document.getElementById('title').textContent = 'Error: ' + e.message; });
+</script>
+</body>
+</html>

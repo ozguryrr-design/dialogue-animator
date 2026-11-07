@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dialogue-animator/schemas/style-pack.schema.json",
+  "title": "Style pack",
+  "description": "Every look decision as a measurable number. See docs/STYLE_PACK.md and docs/STYLE_GUIDE.md.",
+  "type": "object",
+  "required": ["id", "name", "version", "family", "palette", "motion", "camera", "transitions", "captions", "fonts"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string" },
+    "license": { "type": "string" },
+    "description": { "type": "string" },
+    "family": { "enum": ["paper", "gummy", "line"], "description": "Drawing family: how shapes are painted (paper layers, outlined gummy shapes, ink line + offset print)." },
+    "palette": {
+      "type": "object",
+      "required": ["roles", "characterColors", "skin"],
+      "properties": {
+        "lockToPalette": { "type": "boolean", "description": "Snap every character colour to the nearest pack colour." },
+        "roles": {
+          "type": "object",
+          "required": ["paper", "ink", "wall", "floor", "sky", "ground", "accent1", "accent2", "accent3", "light", "dark"],
+          "additionalProperties": { "$ref": "#/$defs/hex" }
+        },
+        "characterColors": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/hex" } },
+        "skin": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/hex" } },
+        "gradient": {
+          "type": "object",
+          "description": "Optional vertical gradients per role, e.g. {\"wall\": [\"#1B1440\", \"#2A1E5C\"]}",
+          "additionalProperties": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/hex" } }
+        }
+      }
+    },
+    "line": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["none", "uniform", "monoline"] },
+        "width": { "type": "number", "minimum": 0, "maximum": 40 },
+        "color": { "type": "string" },
+        "boilFrames": { "type": "integer", "minimum": 0 },
+        "jitter": { "type": "number", "minimum": 0, "maximum": 10 }
+      }
+    },
+    "shadow": {
+      "type": "object",
+      "properties": {
+        "offsetX": { "type": "number" },
+        "offsetY": { "type": "number" },
+        "blur": { "type": "number", "minimum": 0 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "color": { "type": "string" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "properties": { "jitter": { "type": "number", "minimum": 0, "maximum": 10 }, "boilFrames": { "type": "integer", "minimum": 0 } }
+    },
+    "texture": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["none", "paper-grain", "gloss", "halftone"] },
+        "amount": { "type": "number", "minimum": 0, "maximum": 1 },
+        "grainPx": { "type": "number", "minimum": 1 },
+        "pitchPx": { "type": "number", "minimum": 4 },
+        "color": { "type": "string" },
+        "misregisterPx": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+      }
+    },
+    "character": {
+      "type": "object",
+      "properties": {
+        "body": { "enum": ["paper-cut", "gummy", "lanky-line"] },
+        "headRatio": { "type": "number", "minimum": 0.15, "maximum": 0.7 },
+        "limbWidth": { "type": "number", "minimum": 1 },
+        "jointPins": { "type": "boolean" },
+        "featureColor": { "type": "string" }
+      }
+    },
+    "motion": {
+      "type": "object",
+      "required": ["characterFps", "blinkFrames", "reactionLeadFrames"],
+      "properties": {
+        "characterFps": { "type": "number", "minimum": 6, "maximum": 60 },
+        "expressionFrames": { "type": "integer", "minimum": 0, "maximum": 30 },
+        "squash": { "type": "number", "minimum": 0, "maximum": 0.3 },
+        "squashFrames": { "type": "integer", "minimum": 0 },
+        "overshoot": { "type": "number", "minimum": 0, "maximum": 1 },
+        "springHz": { "type": "number", "minimum": 0 },
+        "breath": { "type": "number", "minimum": 0, "maximum": 0.1 },
+        "breathHz": { "type": "number", "minimum": 0 },
+        "bob": { "type": "number", "minimum": 0, "maximum": 0.1 },
+        "bobHz": { "type": "number", "minimum": 0 },
+        "swayDeg": { "type": "number", "minimum": 0, "maximum": 10 },
+        "blinkFrames": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "blinkEvery": { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 }, "minItems": 2, "maxItems": 2 },
+        "reactionLeadFrames": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "gestureFrames": { "type": "integer", "minimum": 1 },
+        "headNodDeg": { "type": "number", "minimum": 0, "maximum": 15 }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "required": ["pushPerFrame", "maxPanPxPerFrame"],
+      "properties": {
+        "pushPerFrame": { "type": "number", "exclusiveMinimum": 0, "maximum": 0.01, "description": "Every hold zooms in by this fraction per frame (never a static hold)." },
+        "punchPushPerFrame": { "type": "number", "minimum": 0, "maximum": 0.02 },
+        "maxPanPxPerFrame": { "type": "number", "exclusiveMinimum": 0 },
+        "rollDeg": { "type": "number", "minimum": 0, "maximum": 10 },
+        "punchZoom": { "type": "number", "minimum": 0, "maximum": 0.3 },
+        "punchFrames": { "type": "integer", "minimum": 1 },
+        "shake": { "type": "object", "properties": { "amp": { "type": "number", "minimum": 0 }, "frames": { "type": "integer", "minimum": 1 } } },
+        "cutLeadFrames": { "type": "integer", "minimum": 0, "maximum": 15 }
+      }
+    },
+    "transitions": {
+      "type": "object",
+      "required": ["cut", "scene"],
+      "properties": { "cut": { "$ref": "#/$defs/transition" }, "scene": { "$ref": "#/$defs/transition" } }
+    },
+    "captions": {
+      "type": "object",
+      "required": ["font"],
+      "properties": {
+        "font": {
+          "type": "object",
+          "required": ["family"],
+          "properties": { "family": { "type": "string" }, "weight": { "type": "integer" }, "style": { "enum": ["normal", "italic"] } }
+        },
+        "word": { "type": "object" },
+        "line": { "type": "object" },
+        "bubble": { "type": "object" }
+      }
+    },
+    "fonts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["family", "file"],
+        "properties": { "family": { "type": "string" }, "file": { "type": "string" }, "fallback": { "type": "boolean" } }
+      }
+    },
+    "music": {
+      "type": "object",
+      "properties": {
+        "tempo": { "type": "number", "minimum": 50, "maximum": 180 },
+        "mood": { "enum": ["warm", "playful", "calm", "tense"] },
+        "scale": { "enum": ["major", "minor", "dorian", "pentatonic"] },
+        "lead": { "enum": ["kalimba", "marimba", "bell", "synth"] }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "properties": { "minTextContrast": { "type": "number" }, "maxColors": { "type": "integer" }, "minLinePx": { "type": "number" } }
+    }
+  },
+  "$defs": {
+    "hex": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "transition": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["cut", "dissolve", "paper-slide", "whip", "iris", "ink-wipe"] },
+        "frames": { "type": "integer", "minimum": 0, "maximum": 30 }
+      }
+    }
+  }
+}

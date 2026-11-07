@@ -1,0 +1,67 @@
+{
+  "$schema": "../../schemas/style-pack.schema.json",
+  "id": "riso-cizgi",
+  "name": "Riso Çizgi (Riso Line)",
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "Risograph print: one blue monoline that trembles twice a second, pink and yellow fills printed slightly off-register, coarse halftone dots, slow editorial camera.",
+  "family": "line",
+  "palette": {
+    "lockToPalette": true,
+    "roles": {
+      "paper": "#F6F1E7",
+      "ink": "#1F5AA6",
+      "wall": "#F6F1E7",
+      "wall2": "#F6F1E7",
+      "wall3": "#F6F1E7",
+      "floor": "#F6F1E7",
+      "floor2": "#F6F1E7",
+      "sky": "#F6F1E7",
+      "ground": "#F6F1E7",
+      "hill": "#FFD400",
+      "accent1": "#FFD400",
+      "accent2": "#FF48B0",
+      "accent3": "#FF48B0",
+      "light": "#F6F1E7",
+      "dark": "#1F5AA6",
+      "glass": "#F6F1E7"
+    },
+    "characterColors": ["#FF48B0", "#FFD400", "#1F5AA6"],
+    "skin": ["#F6F1E7", "#FBE3D0", "#F2C9A8", "#E3A983", "#C98D62"]
+  },
+  "line": { "mode": "monoline", "width": 5, "color": "ink", "jitter": 2.2, "boilFrames": 15 },
+  "shadow": { "opacity": 0 },
+  "edge": { "jitter": 0, "boilFrames": 15 },
+  "texture": { "type": "halftone", "pitchPx": 14, "color": "accent1", "misregisterPx": [8, 5], "amount": 1 },
+  "character": { "body": "lanky-line", "headRatio": 0.26, "limbWidth": 10, "featureColor": "ink" },
+  "motion": {
+    "characterFps": 30,
+    "expressionFrames": 6,
+    "squash": 0,
+    "breath": 0.01,
+    "breathHz": 0.3,
+    "swayDeg": 1,
+    "blinkFrames": 4,
+    "blinkEvery": [2.5, 6],
+    "reactionLeadFrames": 4,
+    "gestureFrames": 8,
+    "headNodDeg": 2
+  },
+  "camera": { "pushPerFrame": 0.0008, "punchPushPerFrame": 0.0014, "maxPanPxPerFrame": 8, "rollDeg": 0, "cutLeadFrames": 4 },
+  "transitions": {
+    "cut": { "type": "dissolve", "frames": 4 },
+    "scene": { "type": "ink-wipe", "frames": 14 }
+  },
+  "captions": {
+    "font": { "family": "DA Fraunces", "weight": 600, "style": "italic" },
+    "word": { "size": 84, "fill": "ink", "y": 0.82, "pop": "none", "padX": 10, "padY": 6 },
+    "line": { "size": 60, "fill": "ink", "highlight": "accent2", "dim": 0.35, "y": 0.86, "maxWidth": 0.86, "maxLines": 2 },
+    "bubble": { "size": 50, "fill": "ink", "bg": "paper", "maxWidth": 0.6 }
+  },
+  "fonts": [
+    { "family": "DA Fraunces", "file": "../../fonts/fraunces/Fraunces-Italic-VF.ttf" },
+    { "family": "DA Noto Sans", "file": "../../fonts/notosans/NotoSans-VF.ttf", "fallback": true }
+  ],
+  "music": { "tempo": 84, "mood": "calm", "scale": "major", "lead": "bell" },
+  "limits": { "minTextContrast": 4.5, "maxColors": 5, "minLinePx": 3 }
+}

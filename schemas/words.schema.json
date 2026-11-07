@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dialogue-animator/schemas/words.schema.json",
+  "title": "words.json (word timings)",
+  "description": "Optional word timings. Times are seconds on the voice file (single file) or inside each line file (per-line files). Accepted shapes: a flat array, {words:[...]}, {lines:[{index|id, words:[...]}]}, or whisper-style {segments:[{words:[...]}]}.",
+  "anyOf": [
+    { "type": "array", "items": { "$ref": "#/$defs/word" } },
+    { "type": "object", "required": ["words"], "properties": { "words": { "type": "array", "items": { "$ref": "#/$defs/word" } } } },
+    {
+      "type": "object",
+      "required": ["lines"],
+      "properties": {
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["words"],
+            "properties": { "index": { "type": "integer" }, "id": { "type": "string" }, "words": { "type": "array", "items": { "$ref": "#/$defs/word" } } }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["segments"],
+      "properties": {
+        "segments": { "type": "array", "items": { "type": "object", "properties": { "words": { "type": "array", "items": { "$ref": "#/$defs/word" } } } } }
+      }
+    }
+  ],
+  "$defs": {
+    "word": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "word": { "type": "string" },
+        "w": { "type": "string" },
+        "text": { "type": "string" },
+        "start": { "type": "number", "minimum": 0 },
+        "end": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

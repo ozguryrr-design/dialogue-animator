@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dialogue-animator/schemas/storyboard.schema.json",
+  "title": "build/storyboard.json",
+  "description": "The single contract between the director and any renderer. Times are seconds, stage units are ~px of a 1080x1920 two-shot (characters ~900 tall, ground at y = 0, up is negative). See docs/STORYBOARD_SCHEMA.md.",
+  "type": "object",
+  "required": ["version", "meta", "video", "style", "characters", "scenes", "lines", "shots", "events", "tracks", "captions"],
+  "properties": {
+    "version": { "const": 1 },
+    "meta": {
+      "type": "object",
+      "required": ["title", "seed"],
+      "properties": {
+        "title": { "type": "string" },
+        "generator": { "type": "string" },
+        "seed": { "type": "integer" },
+        "language": { "type": "string" },
+        "timingSource": { "type": "string" },
+        "estimatedTiming": { "type": "boolean" }
+      }
+    },
+    "video": {
+      "type": "object",
+      "required": ["width", "height", "fps", "duration", "frames"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 16 },
+        "height": { "type": "integer", "minimum": 16 },
+        "fps": { "type": "number", "exclusiveMinimum": 0 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "frames": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "style": {
+      "type": "object",
+      "required": ["id"],
+      "properties": { "id": { "type": "string" }, "family": { "type": "string" }, "body": { "type": "string" } }
+    },
+    "stage": { "type": "object" },
+    "characters": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["id", "name", "colors"] } },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "setting", "cast", "positions", "facing", "background", "start", "end"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "setting": { "type": "string" },
+          "cast": { "type": "array", "items": { "type": "string" } },
+          "positions": { "type": "object", "additionalProperties": { "type": "number" } },
+          "facing": { "type": "object", "additionalProperties": { "enum": [-1, 1] } },
+          "background": {
+            "type": "object",
+            "required": ["place", "props"],
+            "properties": {
+              "place": { "enum": ["interior", "exterior", "studio"] },
+              "props": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "type", "x", "y"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "type": { "type": "string" },
+                    "x": { "type": "number" },
+                    "y": { "type": "number" },
+                    "s": { "type": "number" },
+                    "layer": { "enum": ["back", "floor", "front"] },
+                    "opts": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number" }
+        }
+      }
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "speaker", "scene", "start", "end", "text", "emotion", "words"],
+        "properties": {
+          "id": { "type": "string" },
+          "speaker": { "type": "string" },
+          "scene": { "type": "string" },
+          "start": { "type": "number" },
+          "end": { "type": "number" },
+          "text": { "type": "string" },
+          "emotion": { "type": "string" },
+          "gesture": { "type": ["string", "null"] },
+          "trigger": { "type": ["integer", "null"] },
+          "words": {
+            "type": "array",
+            "items": { "type": "object", "required": ["w", "s", "e"], "properties": { "w": { "type": "string" }, "s": { "type": "number" }, "e": { "type": "number" } } }
+          }
+        }
+      }
+    },
+    "shots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "scene", "start", "end", "type", "camera", "transitionIn"],
+        "properties": {
+          "id": { "type": "string" },
+          "scene": { "type": "string" },
+          "start": { "type": "number" },
+          "end": { "type": "number" },
+          "type": { "enum": ["two", "wide", "medium", "ots", "close", "reaction", "insert"] },
+          "focus": { "type": ["string", "null"] },
+          "subjects": { "type": "array", "items": { "type": "string" } },
+          "line": { "type": ["string", "null"] },
+          "prop": { "type": ["string", "null"] },
+          "why": { "type": "string" },
+          "transitionIn": {
+            "type": "object",
+            "required": ["type"],
+            "properties": { "type": { "type": "string" }, "frames": { "type": "integer", "minimum": 0 } }
+          },
+          "camera": {
+            "type": "object",
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "$ref": "#/$defs/cam" },
+              "to": { "$ref": "#/$defs/cam" },
+              "ease": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["t", "type"],
+        "properties": {
+          "t": { "type": "number" },
+          "type": { "enum": ["expression", "gesture", "look", "fx", "shake", "punch"] },
+          "target": { "type": "string" },
+          "value": {},
+          "dur": { "type": "number" },
+          "why": { "type": "string" }
+        }
+      }
+    },
+    "tracks": {
+      "type": "object",
+      "required": ["mouth", "round", "blinks"],
+      "properties": {
+        "mouth": { "type": "object", "description": "Per character: mouth openness 0..100 for every frame.", "additionalProperties": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 100 } } },
+        "round": { "type": "object", "description": "Per character: '1' where the current vowel is rounded (o, u, ö, ü...) for every frame.", "additionalProperties": { "type": "string", "pattern": "^[01]*$" } },
+        "blinks": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "number" } } }
+      }
+    },
+    "captions": {
+      "type": "object",
+      "required": ["mode", "items"],
+      "properties": {
+        "mode": { "enum": ["none", "word", "line", "bubble"] },
+        "items": {
+          "type": "array",
+          "items": { "type": "object", "required": ["start", "end", "text"], "properties": { "start": { "type": "number" }, "end": { "type": "number" }, "text": { "type": "string" } } }
+        }
+      }
+    },
+    "audio": { "type": "object" },
+    "lint": { "type": "object" }
+  },
+  "$defs": {
+    "cam": {
+      "type": "object",
+      "required": ["x", "y", "h"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "h": { "type": "number", "exclusiveMinimum": 0 }, "roll": { "type": "number" } }
+    }
+  }
+}
