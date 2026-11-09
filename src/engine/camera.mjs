@@ -1,18 +1,21 @@
-// Camera at time t for a shot: linear creep from `from` to `to` (every hold moves), optional ease,
-// constant roll, plus impact shakes and punch zooms from events. Units: stage units; h = visible height.
+// Camera at time t for a shot: a sampled path (`camera.track`, written by the director when the camera
+// follows the action) or a linear creep from `from` to `to`; constant roll, plus impact shakes and punch
+// zooms from events. Units: stage units; h = visible height.
 import { lerp, clamp, ease } from './math.mjs';
 
 export function cameraAt(env, shot, t) {
   const c = shot.camera, dur = Math.max(1e-3, shot.end - shot.start);
-  const raw = (t - shot.start) / dur;
-  const fn = ease[c.ease || 'linear'] || ease.linear;
-  const u = raw < 0 || raw > 1 || (c.ease || 'linear') === 'linear' ? raw : fn(raw);
-  const cam = {
-    x: lerp(c.from.x, c.to.x, u),
-    y: lerp(c.from.y, c.to.y, u),
-    h: Math.max(50, lerp(c.from.h, c.to.h, u)),
-    roll: c.from.roll || 0,
-  };
+  let cam;
+  if (c.track) {
+    const T = c.track, last = T.x.length - 1, at = clamp((t - T.t0) * T.rate, 0, last), k = Math.min(Math.floor(at), Math.max(0, last - 1)), f = last ? at - k : 0;
+    const pick = (a) => lerp(a[k], a[Math.min(k + 1, last)], f);
+    cam = { x: pick(T.x), y: pick(T.y), h: Math.max(50, pick(T.h)), roll: T.roll ? pick(T.roll) : c.from.roll || 0 };
+  } else {
+    const raw = (t - shot.start) / dur;
+    const fn = ease[c.ease || 'linear'] || ease.linear;
+    const u = raw < 0 || raw > 1 || (c.ease || 'linear') === 'linear' ? raw : fn(raw);
+    cam = { x: lerp(c.from.x, c.to.x, u), y: lerp(c.from.y, c.to.y, u), h: Math.max(50, lerp(c.from.h, c.to.h, u)), roll: c.from.roll || 0 };
+  }
   const scale = env.H / cam.h;
   for (const e of env.idx.shake) {
     const k = Math.floor((t - e.t) * env.fps);

@@ -197,6 +197,10 @@
     "director": {
       "type": "object",
       "properties": {
+        "camera": {
+          "enum": ["follow", "cut"],
+          "description": "follow: one moving camera that tracks the action (default). cut: separate static shots with hard cuts."
+        },
         "minShot": {
           "type": "number"
         },

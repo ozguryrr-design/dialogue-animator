@@ -78,7 +78,8 @@ export async function run(dir, cli = {}) {
   ffmpegOrThrow(['-v', 'error', '-y', ...inputs, '-filter_complex', graph, '-map', '[out]', '-c:a', 'pcm_f32le', '-ar', '48000', pre]);
 
   const mix = path.join(files.build, 'mix.wav');
-  if (vLabel || mLabel || sLabel) {
+  // footsteps alone are not a programme to bring up to broadcast level: only a voice or music is
+  if (vLabel || mLabel) {
     let m1 = loudnormPass1(pre, M.lufs, M.truePeak, 11);
     // a dynamic voice (sparse lines, loud consonants) can have more peak than linear loudnorm allows:
     // shave the excess peaks with a look-ahead limiter first, so the target loudness is reachable
@@ -86,7 +87,7 @@ export async function run(dir, cli = {}) {
     if (Number.isFinite(needCut) && needCut > 0) {
       const lim = path.join(files.build, 'premix_lim.wav');
       const limitLin = Math.pow(10, (+m1.input_tp - needCut) / 20);
-      ffmpegOrThrow(['-v', 'error', '-y', '-i', pre, '-af', `alimiter=limit=${Math.min(1, limitLin).toFixed(4)}:attack=5:release=80:level=disabled`, '-c:a', 'pcm_f32le', lim]);
+      ffmpegOrThrow(['-v', 'error', '-y', '-i', pre, '-af', `alimiter=limit=${Math.max(0.0625, Math.min(1, limitLin)).toFixed(4)}:attack=5:release=80:level=disabled`, '-c:a', 'pcm_f32le', lim]);
       fs.renameSync(lim, pre);
       report.limiter = round(needCut, 2);
       m1 = loudnormPass1(pre, M.lufs, M.truePeak, 11);

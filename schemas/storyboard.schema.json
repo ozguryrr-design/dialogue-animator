@@ -334,7 +334,8 @@
               "ots",
               "close",
               "reaction",
-              "insert"
+              "insert",
+              "full"
             ]
           },
           "focus": {
@@ -394,6 +395,11 @@
               },
               "ease": {
                 "type": "string"
+              },
+              "track": {
+                "type": "object",
+                "description": "A sampled camera path: rate samples per second from t0. When present it replaces from/to.",
+                "required": ["t0", "rate", "x", "y", "h"]
               }
             }
           }
@@ -423,7 +429,12 @@
               "posture",
               "prop",
               "sfx",
-              "fade"
+              "fade",
+              "move",
+              "hold",
+              "drop",
+              "visible",
+              "gaze"
             ]
           },
           "target": {

@@ -10,18 +10,18 @@ export function lintStoryboard(sb, style, cfg) {
     const d = durs[i];
     if (d < D.minShot - 1e-6 && i !== shots.length - 1) W.push(`${s.id}: ${d.toFixed(2)} s is shorter than the minimum shot (${D.minShot} s)`);
     const fadesOut = (sb.events || []).some((e) => e.type === 'fade' && e.value === 'out' && e.t >= s.start && e.t < s.end);
-    if (d > D.maxShot + 1.0 && s.type !== 'two' && s.type !== 'wide' && !fadesOut) W.push(`${s.id}: ${d.toFixed(2)} s hold on a single — consider a reaction cut (max ${D.maxShot} s)`);
+    if (d > D.maxShot + 1.0 && s.type !== 'two' && s.type !== 'wide' && s.type !== 'full' && !fadesOut && !s.camera.track) W.push(`${s.id}: ${d.toFixed(2)} s hold on a single — consider a reaction cut (max ${D.maxShot} s)`);
     const c = s.camera;
     if (c.from.h === c.to.h && c.from.x === c.to.x && c.from.y === c.to.y) W.push(`${s.id}: static camera (every hold should creep)`);
     const pxPerUnit = sb.video.height / c.from.h;
     const pan = (Math.hypot(c.to.x - c.from.x, c.to.y - c.from.y) * pxPerUnit) / Math.max(1, d * fps);
-    if (pan > style.camera.maxPanPxPerFrame + 0.01) W.push(`${s.id}: pans ${pan.toFixed(1)} px/frame (limit ${style.camera.maxPanPxPerFrame})`);
+    if (pan > style.camera.maxPanPxPerFrame + 0.01 && !c.track) W.push(`${s.id}: pans ${pan.toFixed(1)} px/frame (limit ${style.camera.maxPanPxPerFrame})`);
     const p = shots[i - 1];
     if (p && p.type === s.type && p.focus === s.focus && p.scene === s.scene) W.push(`${s.id}: same framing as ${p.id} (${s.type} on ${s.focus || 'group'})`);
   });
   // singles in a row
   let run = 0;
-  for (const s of shots) { run = s.type === 'two' || s.type === 'wide' ? 0 : run + 1; if (run === 6) W.push(`${s.id}: six single shots in a row without a two-shot`); }
+  for (const s of shots) { run = s.type === 'two' || s.type === 'wide' || s.type === 'full' ? 0 : run + 1; if (run === 6) W.push(`${s.id}: six single shots in a row without a two-shot`); }
   // speaker on screen while talking
   let talk = 0, seen = 0;
   for (const l of sb.lines) {

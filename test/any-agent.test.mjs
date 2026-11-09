@@ -23,7 +23,7 @@ function obey(dir) {
     d = next(dir);
     seen.push(d.step);
     if (d.state === 'done') break;
-    assert.ok(['run', 'ask', 'design'].includes(d.state), `the agent got stuck: ${JSON.stringify(d)}`);
+    assert.ok(['run', 'ask', 'design', 'stage'].includes(d.state), `the agent got stuck: ${JSON.stringify(d)}`);
     const r = shell(d.state === 'run' ? d.command : d.defaultsCommand);
     assert.equal(r.status, 0, `${d.command || d.defaultsCommand}\n${r.stdout}\n${r.stderr}`);
   }
@@ -42,7 +42,7 @@ test('a literal agent loop finishes a folder with narration, dialogue, own voice
   writeWav(path.join(dir, 'music', 'benim-muzigim.wav'), tone(3, 110, 0.2));
 
   const { d, seen } = obey(dir);
-  assert.deepEqual(seen, ['parse', 'answers', 'design', 'design', 'cast', 'align', 'board', 'render', 'mix', 'qa', 'done']);
+  assert.deepEqual(seen, ['parse', 'answers', 'design', 'design', 'cast', 'align', 'stage', 'stage', 'board', 'render', 'mix', 'qa', 'done']);
   assert.ok(fs.existsSync(d.video));
   assert.notEqual(d.verdict, 'FAIL');
   assert.equal(d.estimatedTiming, false);

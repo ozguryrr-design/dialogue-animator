@@ -24,6 +24,8 @@ import { run as runParse } from '../project/parse.mjs';
 import { run as runCast } from '../project/cast.mjs';
 import { run as runAlign } from '../audio/align.mjs';
 import { lintStoryboard } from './lint.mjs';
+import { stageScene, plannedFromStaging, solveCamera, dressWorld } from './blocking.mjs';
+import { resolveStaging } from '../project/staging.mjs';
 
 const STRONG = new Set(['surprised', 'angry', 'scared', 'laugh']);
 // quiet but intense lines also earn a close-up (no roll, no punch)
@@ -75,17 +77,23 @@ export function frameFor(type, ctx, focus, extra = {}) {
   const gf = groundFrac(aspect), portrait = aspect < 1;
   const off = (id, t) => (ctx.offAt ? ctx.offAt(scene, id, t) : 0);
   const t0 = extra.t0 ?? 0, t1 = extra.t1 ?? t0;
-  if ((type === 'two' || type === 'wide') && !scene.cast.length) {
+  const group = extra.subjects?.length ? extra.subjects : scene.cast;
+  if (type === 'full') {
+    const m = M[focus], x0 = scene.positions[focus], dir = extra.lead || scene.facing[focus] || 1;
+    const h = ((m.H + (m.hat || 0)) * 1.16) / (portrait ? 0.74 : 0.84), g = portrait ? 0.78 : 0.88;
+    return { x: x0 + dir * h * aspect * 0.12, y: -g * h + h / 2 + Math.min(off(focus, t0), off(focus, t1)) * 0.5, h };
+  }
+  if ((type === 'two' || type === 'wide') && !group.length) {
     // nobody on stage (narration over an empty set)
     const h = Math.max(1120 / aspect, 1200);
     return { x: 0, y: -gf * h + h / 2, h };
   }
   if (type === 'two' || type === 'wide') {
-    const seated = scene.cast.some((id) => off(id, t0) > 1 || off(id, t1) > 1);
+    const seated = group.some((id) => off(id, t0) > 1 || off(id, t1) > 1);
     const hw = (id) => (seated ? halfShoulders(M[id]) : M[id].halfW);
-    const xs = scene.cast.map((id) => [scene.positions[id] - hw(id), scene.positions[id] + hw(id)]);
+    const xs = group.map((id) => [scene.positions[id] - hw(id), scene.positions[id] + hw(id)]);
     const minX = Math.min(...xs.map((v) => v[0])), maxX = Math.max(...xs.map((v) => v[1]));
-    const maxH = Math.max(...scene.cast.map((id) => M[id].H + (M[id].hat || 0)));
+    const maxH = Math.max(...group.map((id) => M[id].H + (M[id].hat || 0)));
     const w = maxX - minX + 140;
     const g = seated && portrait ? 0.66 : gf; // people at a table: the table edge sits a bit higher, less empty floor
     let h = Math.max(w / aspect, (maxH * 1.06) / (g - 0.05));
@@ -126,7 +134,7 @@ export function frameFor(type, ctx, focus, extra = {}) {
     return { x, y: top + h / 2, h };
   }
   // medium
-  const h = m.H * (portrait ? 1.1 : 0.88) + oRange * 1.1;
+  const h = m.H * (portrait ? (ctx.dynamic ? 1.42 : 1.1) : 0.88) + oRange * 1.1;
   const top = headTop - h * 0.07 - Math.min(m.hat || 0, h * 0.2);
   return { x: x0 + dir * h * aspect * 0.05, y: top + h / 2, h };
 }
@@ -141,7 +149,12 @@ function planScene(scene, lines, ctx) {
   const shots = [];
   const add = (start, type, focus, why, extra = {}) => shots.push({ start: Math.max(scene.start, start), type, focus, why, ...extra });
   const framingNext = {};
-  const nextFraming = (id) => { const t = framingNext[id] || (multi ? 'ots' : 'medium'); framingNext[id] = t === 'ots' ? 'medium' : 'ots'; return t; };
+  const flow = multi ? ['full', 'two', 'medium'] : ['full', 'medium'];
+  const nextFraming = (id) => {
+    if (ctx.dynamic) { const i = framingNext[id] || 0; framingNext[id] = (i + 1) % flow.length; return flow[i]; }
+    const t = framingNext[id] || (multi ? 'ots' : 'medium'); framingNext[id] = t === 'ots' ? 'medium' : 'ots'; return t;
+  };
+  const moving = ctx.dynamic ? Object.values(ctx.moves || {}).flat().filter((m) => m.dur >= 0.8).sort((a, b) => a.t - b.t) : [];
   const listenerOf = (L, prevSpeaker) => {
     const others = cast.filter((id) => id !== L.speaker);
     if (!others.length) return null;
@@ -150,7 +163,9 @@ function planScene(scene, lines, ctx) {
   };
   let singles = 0, lastInsert = -99, start = 0, voIdx = 0;
   if (multi) {
-    add(scene.start, 'two', null, 'establishing two-shot');
+    const walkIn = moving.find((m) => m.t <= scene.start + 0.5);
+    if (walkIn) add(scene.start, 'full', walkIn.target, 'follows whoever walks in');
+    else add(scene.start, 'two', null, 'establishing two-shot');
     const l0 = lines[0];
     if (l0 && !l0.voiceOver && l0.end - scene.start > 3.2) {
       const w = l0.words.find((x) => x.s - scene.start >= 1.6 && x.s - l0.start >= 1.0);
@@ -163,6 +178,9 @@ function planScene(scene, lines, ctx) {
     if (L.voiceOver) {
       // narration has nobody to cut to: show the whole stage, then look around every ~3 s
       const details = scene.background.props.filter((p) => !BACKDROP.includes(p.type) && geometryOf(p).w < 1000 && p.visible !== false && p.layer !== 'front');
+      // while someone is on their way somewhere, the narration goes with them
+      const mover = moving.find((m) => L.start < m.t + m.dur && L.end > m.t);
+      if (mover) { if (!cur || cur.focus !== mover.target) add(L.start - lead, 'full', mover.target, 'narration follows whoever is moving', { line: L.id }); singles = 0; continue; }
       const pool = cast.length ? cast.map((id) => ({ type: 'medium', focus: id, why: `narration: a look at ${id}` })) : details.map((p) => ({ type: 'insert', focus: null, prop: p.id, why: `narration: ${p.type}` }));
       if (!cur || cur.type !== 'wide') add(L.start - lead, 'wide', null, 'narration over the whole scene', { line: L.id });
       singles = 0;
@@ -218,15 +236,19 @@ function planScene(scene, lines, ctx) {
         add(w.s - lead, 'insert', null, `cutaway: ${hit.prop}`, { prop: prop.id, line: L.id });
         lastInsert = L.start;
         const back = w.s - lead + 1.05;
-        if (L.end - back > 0.7) add(back, framingNext[L.speaker] === 'ots' ? 'medium' : 'ots', L.speaker, 'back from the cutaway', { line: L.id });
+        if (L.end - back > 0.7) add(back, ctx.dynamic ? 'medium' : framingNext[L.speaker] === 'ots' ? 'medium' : 'ots', L.speaker, 'back from the cutaway', { line: L.id });
       }
     }
   }
   // silent beats (directions only): show the door if one moves, otherwise the whole room
   const silent = (ctx.beats || []).filter((b) => b.scene === scene.id && !b.lines.length);
   for (const b of silent) {
-    if (b._door) add(b.start, 'insert', null, `silent beat: ${b.text.slice(0, 40)}`, { prop: b._door });
-    else add(b.start, 'wide', null, `silent beat: ${b.text.slice(0, 40)}`);
+    if (b._door) {
+      // be on the door while it moves, and come back afterwards if the beat goes on
+      if (b._doorT - b.start > 1) add(b.start, 'wide', null, `silent beat: ${b.text.slice(0, 40)}`);
+      add(b._doorT - 0.3, 'insert', null, `silent beat: ${b.text.slice(0, 40)}`, { prop: b._door, door: true });
+      if (!b.actions.some((a) => a.fade) && b.end - b._doorEnd >= 1.2) add(b._doorEnd + 0.3, 'two', null, 'back to the people after the door');
+    } else add(b.start, 'wide', null, `silent beat: ${b.text.slice(0, 40)}`);
   }
   // a long silence after a line shows the listener taking it in
   if (multi && reactions) {
@@ -245,10 +267,19 @@ function planScene(scene, lines, ctx) {
   if (multi) {
     for (const e of (ctx.postureEvents || []).filter((x) => x.t >= scene.start && x.t < scene.end && scene.cast.includes(x.target))) {
       const a = e.t - 0.25, b = e.t + e.dur + 0.5;
+      // a door swinging at the same moment keeps the camera
+      const door = (ctx.beats || []).find((x) => x._door && x.scene === scene.id && a >= x._doorT - 0.3 && a <= x._doorEnd + 0.3);
+      if (door) continue;
       add(a, 'two', null, `${e.target} ${e.value === 'stand' ? 'stands up' : 'sits down'}`);
       const L = lines.find((x) => x.start < b && x.end > b + 0.9);
       if (L) add(b, 'close', L.speaker, 'back to the speaker after the move', { line: L.id });
     }
+  }
+  // someone crosses the set: go with them, then take everyone in again
+  for (const m of moving) {
+    if (m.t <= scene.start + 0.5) { if (multi) add(m.t + m.dur + 0.1, 'two', null, 'everyone in frame after the entrance'); continue; }
+    add(m.t - 0.15, 'full', m.target, `follows ${m.target}`);
+    if (multi) add(m.t + m.dur + 0.1, 'two', null, 'everyone in frame after the move');
   }
   // finalize: order, ends, minimum length, no identical neighbours
   if (!shots.length) add(scene.start, 'wide', null, 'nothing else to show');
@@ -446,7 +477,7 @@ function buildCaptions(mode, lines, aspect) {
 }
 
 // ---------------- main ----------------
-export function direct({ dialogue, characters, timing, envelope, style, cfg, design = null }) {
+export function direct({ dialogue, characters, timing, envelope, style, cfg, design = null, staging = null }) {
   const fps = cfg.fps, { width: W, height: H } = cfg.video, aspect = W / H;
   const duration = timing.duration, frames = Math.ceil(duration * fps);
   const lead = (style.camera.cutLeadFrames ?? 4) / fps;
@@ -526,7 +557,9 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg, des
 
   // timed beats: mood, posture, table, door, bowl, sound effects, fades (docs/DIRECTING.md "Beats")
   const beats = (dialogue.beats || []).map((b) => ({ ...b, end: b.end ?? b.start + 3 }));
-  const beatEvents = [], noBlink = {};
+  const beatEvents = [], noBlink = {}, staged = {};
+  const dynamic = D.camera !== 'cut';
+  const stagingFor = (s, i) => staging?.scenes?.find((x) => x.scene === s.id) || null;
   for (const s of scenes) {
     const folded = ' ' + s.text.split(/\s+/).map(foldKey).join(' ') + ' ';
     if (s.night ?? / (gece|iftar|aksam|night|evening|midnight|karanlik)/.test(folded)) s.background.tint = { color: 'dark', alpha: 0.3 };
@@ -537,6 +570,7 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg, des
       const avgH = s.cast.reduce((a, id) => a + M[id].H, 0) / s.cast.length;
       s.background.props.push({ id: `${s.id}-sofra`, type: 'sofra', x: round((minX + maxX) / 2), y: 0, s: 1, layer: 'front', opts: { w: Math.round(maxX - minX + 220), h: Math.round(avgH * 0.22) } });
     }
+    if (stagingFor(s)?.keepScriptActions === false) continue;
     for (const b of sBeats) {
       let doorEnd = null, lastSfx = null;
       for (const a of b.actions) {
@@ -564,12 +598,19 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg, des
           beatEvents.push({ t: round(d0), type: 'prop', target: door.id, key: 'open', value: closing ? 0 : 1, dur: round(dur), why: a.text });
           doorEnd = d0 + dur;
           if (a.sfx) { lastSfx = doorEnd - 0.04; beatEvents.push({ t: round(lastSfx), type: 'sfx', value: a.sfx }); }
-          b._door = door.id;
+          b._door = door.id; b._doorT = d0; b._doorEnd = doorEnd;
         }
         if (a.sfx && !a.door && !a.gesture) { lastSfx = doorEnd ? doorEnd + 0.55 : b.start + 0.4; beatEvents.push({ t: round(lastSfx), type: 'sfx', value: a.sfx, why: a.text }); }
         if (a.fade) { const f0 = (lastSfx ?? b.start + 1) + 0.2; beatEvents.push({ t: round(f0), type: 'fade', value: a.fade, dur: round(Math.max(0.6, Math.min(1.6, b.end - f0 - 0.4))), why: a.text }); }
       }
     }
+  }
+  // staging.json: who walks where, what they handle
+  for (const s of scenes) {
+    const sd = stagingFor(s);
+    if (!sd) continue;
+    staged[s.id] = stageScene(s, sd, { M, lines, beats, fill: fillOf });
+    beatEvents.push(...staged[s.id].events);
   }
   for (const s of scenes) for (const p of s.background.props) if (style.propOpts?.[p.type]) p.opts = { ...style.propOpts[p.type], ...(p.opts || {}) };
   const postureEvents = beatEvents.filter((e) => e.type === 'posture').sort((a, b) => a.t - b.t);
@@ -591,8 +632,12 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg, des
   ctxBase.speakerDuring = (shot) => { const l = lines.find((x) => !x.voiceOver && x.start < shot.end && x.end > shot.start); return l ? l.speaker : null; };
   let speakerChanges = 0;
   for (const [si, scene] of scenes.entries()) {
-    const ctx = { ...ctxBase, scene };
-    const planned = planScene(scene, lines.filter((l) => l.scene === scene.id), ctx);
+    const mine = beatEvents.filter((e) => !e.scene || e.scene === scene.id);
+    const byTarget = (type) => { const m = {}; for (const e of mine) if (type.includes(e.type)) (m[e.target] ||= []).push(e); for (const k of Object.keys(m)) m[k].sort((a, b) => a.t - b.t); return m; };
+    const ctx = { ...ctxBase, scene, dynamic, seed: cfg.seed, moves: staged[scene.id]?.moves || {}, lookEvents: byTarget(['look']), attachEvents: byTarget(['hold', 'drop']) };
+    const sd = stagingFor(scene);
+    const planned = sd?.camera?.length ? plannedFromStaging(scene, sd, staged[scene.id], { lines, beats }) : planScene(scene, lines.filter((l) => l.scene === scene.id), ctx);
+    const firstOfScene = shots.length;
     planned.forEach((p, k) => {
       const prev = shots[shots.length - 1];
       let transitionIn = { type: 'cut', frames: 0 };
@@ -600,12 +645,21 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg, des
       else if (k > 0) {
         transitionIn = { ...style.transitions.cut };
         const sc = style.transitions.speakerChange;
-        if (sc && prev && prev.focus && p.focus && prev.focus !== p.focus && (++speakerChanges % 3 === 1)) transitionIn = { ...sc };
+        if (dynamic) transitionIn = p.transition ? { type: p.transition, frames: 8 } : { type: 'cut', frames: 0 };
+        else if (sc && prev && prev.focus && p.focus && prev.focus !== p.focus && (++speakerChanges % 3 === 1)) transitionIn = { ...sc };
       }
-      const shot = { id: `sh${String(shots.length + 1).padStart(2, '0')}`, scene: scene.id, start: round(p.start), end: round(p.end), type: p.type, focus: p.focus || null, subjects: p.type === 'two' || p.type === 'wide' ? scene.cast : p.focus ? [p.focus] : [], line: p.line || null, prop: p.prop || null, transitionIn, why: p.why };
-      shot.camera = cameraFor({ ...shot }, ctx);
+      const shot = { id: `sh${String(shots.length + 1).padStart(2, '0')}`, scene: scene.id, start: round(p.start), end: round(p.end), type: p.type, focus: p.focus || null, subjects: p.subjects || (p.type === 'two' || p.type === 'wide' ? scene.cast : p.focus ? [p.focus] : []), line: p.line || null, prop: p.prop || null, transitionIn, why: p.why, ...(p.withCast ? { withCast: true } : {}) };
+      if (!dynamic) shot.camera = cameraFor({ ...shot }, ctx);
       shots.push(shot);
     });
+    if (dynamic) {
+      const own = shots.slice(firstOfScene);
+      solveCamera(scene, planned.map((p, k) => ({ ...p, start: own[k].start, end: own[k].end, focus: own[k].focus, type: own[k].type })), own, ctx, frameFor);
+      // the set has to exist wherever the camera goes
+      let xmin = Infinity, xmax = -Infinity, camMin = Infinity, camMax = -Infinity;
+      for (const s of own) s.camera.track.x.forEach((x, i) => { const hw = (s.camera.track.h[i] * aspect) / 2; xmin = Math.min(xmin, x - hw); xmax = Math.max(xmax, x + hw); camMin = Math.min(camMin, x); camMax = Math.max(camMax, x); });
+      dressWorld(scene, Math.round(xmin), Math.round(xmax), camMax - camMin);
+    }
   }
 
   // sound effect cues written in the script: at a given time, at the start of their beat, or just before the next line
@@ -629,7 +683,7 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg, des
     stage: { characterHeight: 900, groundY: 0 },
     characters: chars,
     scenes: scenes.map(({ first, last, text, ...s }) => s),
-    beats: beats.map(({ _door, ...b }) => b),
+    beats: beats.map(({ _door, _doorT, _doorEnd, ...b }) => b),
     lines: lines.map(({ props, ...l }) => l),
     shots,
     events: [],
@@ -681,7 +735,8 @@ export async function run(dir, cli = {}) {
   const envelope = exists(b('envelope.json')) ? readJSON(b('envelope.json')) : null;
   const style = loadStyle(cfg.style, files.dir);
   const design = resolveDesign(files, dialogue);
-  const sb = direct({ dialogue, characters, timing, envelope, style, cfg, design });
+  const staging = resolveStaging(files, dialogue, design);
+  const sb = direct({ dialogue, characters, timing, envelope, style, cfg, design, staging });
   const lint = lintStoryboard(sb, style, cfg);
   sb.lint = { warnings: lint.warnings, stats: lint.stats };
   assertValid(sb, 'storyboard');
@@ -689,6 +744,8 @@ export async function run(dir, cli = {}) {
   writeDecisions(files, decisions, [
     { key: 'timing source', value: timing.source + (timing.estimated ? ' (ESTIMATED)' : ''), source: 'auto' },
     { key: 'sets and costumes', value: `${design.concept || 'no concept'}`, source: design.source },
+    { key: 'what happens', value: `${staging.idea || 'no idea stated'}`, source: staging.source },
+    { key: 'camera', value: cfg.director.camera, source: 'project.json or default' },
     ...sb.scenes.map((s) => ({ key: `scene ${s.id}`, value: `${s.setting} (${s.label || 'no label'}), cast: ${s.cast.join(', ')}`, source: s.label ? 'dialogue' : 'auto' })),
     { key: 'shots', value: `${sb.shots.length} shots, ${lint.stats.cuts} cuts, avg ${lint.stats.avgShot.toFixed(2)} s`, source: 'auto' },
   ]);

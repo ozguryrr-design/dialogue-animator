@@ -25,7 +25,7 @@ export const DEFAULTS = {
   output: null,
   quality: { crf: 18, preset: 'medium' },
   mix: { lufs: -14, truePeak: -2, musicDb: -13, duckDb: -8 },
-  director: { minShot: 0.8, maxShot: 4.5, cutaways: true, reactions: true },
+  director: { minShot: 0.8, maxShot: 4.5, cutaways: true, reactions: true, camera: 'follow' },
 };
 
 export const FORMATS = { '9:16': [1080, 1920], '16:9': [1920, 1080], '1:1': [1080, 1080], '4:5': [1080, 1350] };

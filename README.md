@@ -30,6 +30,10 @@ node bin/da.mjs init my-video     # makes audio/, sfx/, music/, characters/ and 
 node bin/da.mjs next my-video     # says what to do next; repeat until it prints DONE
 ```
 
+## The story happens on screen
+
+People walk in, carry things, hand them over, hide them. One camera follows them through a set that keeps going, with far things sliding slower than near ones. The agent reads the story and writes it down in `staging.json` ([docs/STAGING.md](docs/STAGING.md)). A story with no speech at all works too: timed directions and `@cast`.
+
 ## Every story gets its own world
 
 The sets and costumes come from the story, even when nobody describes them. A palace intrigue gets tiled walls, lattice windows, a kavuk and a kaftan. A school story gets a blackboard, desks and uniforms. A hike gets a forest. The agent acts as art director: it writes `design.json`, composing from about 90 ready-made parts, 25 headwear and 11 garments, and it can **draw anything missing with simple JSON shapes**. It all follows the chosen style by itself. Without an agent, a keyword draft does a decent first pass. See [docs/DESIGN.md](docs/DESIGN.md).
@@ -130,7 +134,7 @@ audio/ ─────align─▶ timing.json + voice.wav + mouth envelopes
 Run them as `node bin/da.mjs …`, or `npm link` once and use `da …`.
 
 ## Docs
-[PROJECT_FOLDER](docs/PROJECT_FOLDER.md) · [DESIGN](docs/DESIGN.md) · [QUESTIONS](docs/QUESTIONS.md) · [CHARACTERS](docs/CHARACTERS.md) · [DIRECTING](docs/DIRECTING.md) · [AUDIO](docs/AUDIO.md) · [STYLE_GUIDE](docs/STYLE_GUIDE.md) · [STYLE_PACK](docs/STYLE_PACK.md) · [STORYBOARD_SCHEMA](docs/STORYBOARD_SCHEMA.md) · [RENDERERS](docs/RENDERERS.md) · [QA](docs/QA.md) · [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)
+[PROJECT_FOLDER](docs/PROJECT_FOLDER.md) · [DESIGN](docs/DESIGN.md) · [STAGING](docs/STAGING.md) · [QUESTIONS](docs/QUESTIONS.md) · [CHARACTERS](docs/CHARACTERS.md) · [DIRECTING](docs/DIRECTING.md) · [AUDIO](docs/AUDIO.md) · [STYLE_GUIDE](docs/STYLE_GUIDE.md) · [STYLE_PACK](docs/STYLE_PACK.md) · [STORYBOARD_SCHEMA](docs/STORYBOARD_SCHEMA.md) · [RENDERERS](docs/RENDERERS.md) · [QA](docs/QA.md) · [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)
 
 ## Licence and assets
 - Code and docs: **MIT** ([LICENSE](LICENSE)).
@@ -165,6 +169,7 @@ node bin/da.mjs next benim-videom            # sıradaki tek adımı söyler; DO
 | **Karakterler** | `characters/` | `ali.md` içine "uzun boylu, kıvırcık kızıl saçlı, gözlüklü" gibi bir tarif; yoksa ajan hikâyeye göre tasarlar. |
 
 - **Ayarlar:** `da next` stil, format ve altyazıyı sorar. Elle: `da answer benim-videom --style jole --format 16:9 --captions line`. Sorulmayan her şeyin varsayılanı vardır; kullanılanlar `build/decisions.md` dosyasına yazılır.
+- **Hikâye ekranda olur:** Karakterler yürüyerek gelir, eşya taşır, verir, saklar. Tek kamera onları takip eder, mekân kamera ilerledikçe devam eder. Ajan hikâyeyi okuyup bunu `staging.json` dosyasına yazar ([docs/STAGING.md](docs/STAGING.md)). Hiç konuşma olmayan bir hikâye de olur: zamanlı yönergeler ve `@cast` yeterli.
 - **Ortam ve kostüm:** Tarif etmeseniz bile ajan metinden dönemi, yeri ve kişileri çıkarıp `design.json` yazar: saray, kavuk, kaftan; sınıf, tahta, üniforma; orman, dağ, sahil. Hazır parçalar yetmezse JSON şekillerle kendisi çizer ve her şey seçilen stile uyar ([docs/DESIGN.md](docs/DESIGN.md)).
 - **Zamanlı akış:** `0–5 sn — Kapı kapanır.` gibi satırlar konuşmaları o aralığa yerleştirir ve yönergeleri oynatır.
 - **Stiller:** `kesik-kagit` (varsayılan), `jole`, `riso-cizgi`. Kendi stilinizi `node bin/da.mjs style new benim-stilim --from kesik-kagit` ile türetebilirsiniz.

@@ -3,6 +3,7 @@
 import { armFromAngles, solveIK } from '../poses.mjs';
 import { arcPts, quadPts, stripPts } from '../shapes.mjs';
 import { wear } from '../wardrobe.mjs';
+import { footOf, placeHeld } from '../motion.mjs';
 
 export const BASE_HEIGHT = 900;
 
@@ -32,20 +33,24 @@ export function build(ch, st, env) {
   const lw = env.style.character?.limbWidth || 10;
   // legs
   const long = ch.body?.shape === 'robe', sleeve = ch.costume?.body ? H * 0.056 : 0;
-  const worn = wear(ch, st, anchors(m, ch), env);
+  const worn = wear(ch, st, { ...anchors(m, ch), fx: 0.18 + 0.16 * (st.turn || 0) }, env);
   const hairStyle = worn.hidesHair ? 'none' : ch.hair?.style || 'short';
-  if (!long) for (const k of [-1, 1]) items.push({ k: 'stroke', pts: [[k * m.tw * 0.22, -m.legH], [k * m.tw * 0.26, -H * 0.012], [k * m.tw * 0.26 + dir * H * 0.045, -H * 0.006]], w: lw, fill: ink });
+  if (!long) for (const k of [-1, 1]) { const { dx, lift } = footOf(st.walk, k, m.legH, dir); items.push({ k: 'stroke', pts: [[k * m.tw * 0.22, -m.legH], [k * m.tw * 0.26 + dx, -H * 0.012 - lift], [k * m.tw * 0.26 + dx + dir * H * 0.045, -H * 0.006 - lift]], w: lw, fill: ink }); }
+  const hands = {};
   const arm = (k) => {
     const side = k === dir ? st.pose.near : st.pose.far;
     const S = [k * m.tw * 0.46, m.torsoTop + H * 0.03];
     const l1 = H * 0.15, l2 = H * 0.14;
     let E, Hd;
-    if (side.target) ({ E, H: Hd } = solveIK(S, [side.target[0] * r * dir, m.headCY + side.target[1] * r], l1, l2, k > 0 ? -1 : 1));
+    if (side.at) ({ E, H: Hd } = solveIK(S, [side.at[0] * H * dir, -side.at[1] * H], l1, l2, k > 0 ? -1 : 1));
+    else if (side.target) ({ E, H: Hd } = solveIK(S, [side.target[0] * r * dir, m.headCY + side.target[1] * r], l1, l2, k > 0 ? -1 : 1));
     else ({ E, H: Hd } = armFromAngles(S, k, side.sh, side.el, l1, l2));
+    hands[k === dir ? 'near' : 'far'] = Hd;
     if (sleeve) return [{ k: 'poly', pts: stripPts([S, E, Hd], sleeve), fill: body }, { k: 'circle', x: Hd[0], y: Hd[1], r: H * 0.03, fill: ch.colors.skin }];
     return [{ k: 'stroke', pts: [S, E, Hd], w: lw, fill: ink }, { k: 'circle', x: Hd[0], y: Hd[1], r: H * 0.014, fill: ink, feature: true }];
   };
-  items.push(...arm(-dir));
+  const farArm = arm(-dir), nearArm = arm(dir), held = placeHeld(st.held, hands, dir);
+  items.push(...held.behind, ...farArm);
   const torsoH = -m.legH - m.torsoTop + 10;
   if (long) { const a = anchors(m, ch); items.push({ k: 'poly', pts: [[-a.shoulderW * 0.42, a.shoulderY], [a.shoulderW * 0.42, a.shoulderY], [a.shoulderW / 2, a.shoulderY + H * 0.03], [a.hemW / 2, a.hemY], [-a.hemW / 2, a.hemY], [-a.shoulderW / 2, a.shoulderY + H * 0.03]], fill: body }); }
   else items.push({ k: 'rrect', x: -m.tw / 2, y: m.torsoTop, w: m.tw, h: torsoH, r: m.tw * 0.28, fill: body });
@@ -67,7 +72,7 @@ export function build(ch, st, env) {
   // hats sit above the highest brow position (surprised), so expressions stay readable
   if (acc.has('hat') || acc.has('beanie')) head.push({ k: 'poly', pts: [...arcPts(0, m.headCY - r * 0.8, r * 0.92, Math.PI * 1.02, Math.PI * 1.98, 12)], fill: ch.colors.accent });
   head.push(...worn.hat);
-  const fx = dir * r * 0.18, ey = m.headCY + r * 0.02;
+  const fx = dir * r * (0.18 + 0.16 * (st.turn || 0)), ey = m.headCY + r * 0.02;
   for (const k of [-1, 1]) {
     const ex = fx + k * r * 0.38;
     if (st.blink > 0.5) head.push({ k: 'stroke', pts: [[ex - r * 0.12, ey], [ex + r * 0.12, ey]], w: lw * 0.8, fill: ink, feature: true });
@@ -86,7 +91,7 @@ export function build(ch, st, env) {
   head.push(...worn.face);
   const neckY = m.torsoTop;
   items.push({ k: 'group', tf: { x: 0, y: neckY, rot: st.headTilt + st.pose.head * dir }, items: head.map((s) => shiftY(s, -neckY)) });
-  items.push(...arm(dir));
+  items.push(...held.front, ...nearArm);
   return { items, metrics: m };
 }
 

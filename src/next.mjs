@@ -3,6 +3,7 @@
 // An agent only has to run this, do what it prints, and repeat until it prints DONE.
 // States: run (execute `command`) · ask (ask the user, then run `answerCommand`, or `defaultsCommand` if you cannot ask)
 //         design (be the art director: improve design.json, or run `defaultsCommand` if you cannot)
+//         stage (be the director: write what happens in staging.json, or run `defaultsCommand` if you cannot)
 //         edit (a file must be written, see `instructions`) · fix (QA failed) · blocked (needs the user) · done
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,6 +13,7 @@ import { scanProject, outputPath, loadConfig } from './project/config.mjs';
 import { listStyles, resolveStyleDir } from './style/load.mjs';
 import { resolveSfx } from './audio/sfx.mjs';
 import { designState } from './project/design.mjs';
+import { stagingState, timedSheet } from './project/staging.mjs';
 import { foldKey } from './lib/text.mjs';
 
 const slash = (p) => p.split(path.sep).join('/');
@@ -30,7 +32,7 @@ export const FORMAT_HELP = [
   '0–5 sn — a stage direction          optional: a timed beat; the lines under it go into that window',
 ];
 
-const STEPS = ['tools', 'dialogue', 'parse', 'answers', 'design', 'cast', 'align', 'board', 'render', 'mix', 'qa'];
+const STEPS = ['tools', 'dialogue', 'parse', 'answers', 'design', 'cast', 'align', 'stage', 'board', 'render', 'mix', 'qa'];
 
 function questions(files, dialogue) {
   const styles = listStyles([path.join(files.dir, 'styles')]).map((s) => s.id);
@@ -127,9 +129,30 @@ export async function decide(dirArg) {
   // pipeline, each step only when its output is missing or older than what it depends on
   if (stale(b('characters.json'), [b('dialogue.json'), pj, ds.file, ...files.characters])) return run('cast', da('cast'), 'the characters have not been built yet, or their sources changed', { hints: designHints });
   if (stale(b('timing.json'), [b('dialogue.json'), pj, files.words, ...files.audio])) return run('align', da('align'), 'the voice has not been timed yet, or it changed');
+  // what happens on screen: a draft from the verbs in the script, then a director's pass
+  const timingNow = readJSON(b('timing.json'));
+  const ss = stagingState(files, dialogue, readJSON(ds.file)), stageGuide = `${slash(ROOT)}/docs/STAGING.md`;
+  if (!ss.exists) return run('stage', da('stage'), 'nothing has been staged yet; this writes a first draft from the verbs in the script');
+  if (ss.errors.length) return { state: 'edit', ...n('stage'), why: 'staging.json has problems', instructions: [...ss.errors.slice(0, 15), `Fix these in ${slash(ss.file)}. The format is in ${stageGuide}.`] };
+  if (ss.status !== 'final') {
+    return {
+      state: 'stage', ...n('stage'), why: 'nothing is staged beyond an automatic draft made from keywords',
+      instructions: [
+        `You are the director now. Open ${slash(ss.file)} and make the STORY happen on screen. Two people standing and talking is a failure.`,
+        'Read the timed script below. For every scene write "do": who comes from where, who goes where, what they carry, take, give, hide or put down, when they turn or look, in the order the story tells it. Everything the script says happens must be seen.',
+        'Declare everything that gets handled under "objects": "part" for a named part of design.json, "use" for a catalogue part, "draw" for your own shapes.',
+        'Let people travel: start them far apart (x is in stage units, a frame is about 1100 wide) and have them walk. If the story goes somewhere, add a scene or make the set long enough in design.json.',
+        'Write "camera" with an entry at least every 3 seconds: follow whoever moves ("on": who, "size": "full"), "two" for both, the object when it matters, "close" only for the strongest lines. The camera glides from one entry to the next; "cut": true only when a hard cut is the point.',
+        `Times: seconds, l3, l3.end, b2, b2+1.5, or +0.5 for after the previous action. Format and a worked example: ${stageGuide}`,
+        'When it is done, set "status": "final" in staging.json.',
+        '', ...timedSheet(dialogue, timingNow).split('\n'),
+      ],
+      defaultsCommand: `${da('stage')} --accept`,
+    };
+  }
   let styleJson = null;
   try { styleJson = path.join(resolveStyleDir(cfg.style, files.dir), 'style.json'); } catch (e) { return { state: 'edit', ...n('board'), why: e.message, instructions: ['Set an existing style in project.json ("style").'] }; }
-  if (stale(b('storyboard.json'), [b('dialogue.json'), b('characters.json'), b('timing.json'), pj, ds.file, styleJson])) return run('board', da('board'), 'the scenes have not been directed yet, or an input changed');
+  if (stale(b('storyboard.json'), [b('dialogue.json'), b('characters.json'), b('timing.json'), pj, ds.file, ss.file, styleJson])) return run('board', da('board'), 'the scenes have not been directed yet, or an input changed');
   if (stale(b('video.mp4'), [b('storyboard.json')])) return run('render', da('render'), 'the picture has not been rendered yet, or the storyboard changed', { hints: ['Optional, if you can see images: run `stills` first and look at build/stills/sheet.png.'] });
   const sb = readJSON(b('storyboard.json'));
   const out = outputPath(cfg, files, sb.meta.title);
@@ -165,7 +188,7 @@ function print(d) {
   if (d.questions) d.questions.forEach((x, i) => console.log(`Q${i + 1}:   ${x.question} [${x.options.join(' | ')}] default: ${x.default}`));
   for (const l of d.instructions || []) console.log(`DO:   ${l}`);
   if (d.answerCommand) console.log(`THEN RUN:        ${d.answerCommand}`);
-  if (d.defaultsCommand) console.log(`${d.state === 'design' ? 'CANNOT DESIGN? RUN:' : 'CANNOT ASK? RUN:'} ${d.defaultsCommand}`);
+  if (d.defaultsCommand) console.log(`${d.state === 'design' ? 'CANNOT DESIGN? RUN:' : d.state === 'stage' ? 'CANNOT STAGE? RUN:' : 'CANNOT ASK? RUN:'} ${d.defaultsCommand}`);
   for (const l of d.hints || []) console.log(`HINT: ${l}`);
   for (const l of d.warnings || []) console.log(`WARN: ${l}`);
   if (d.video) console.log(`VIDEO: ${d.video}`);

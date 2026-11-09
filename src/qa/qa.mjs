@@ -62,9 +62,15 @@ export async function run(dir, args = {}) {
     const f0 = Math.round(s.start * fps), half = Math.ceil((s.transitionIn?.frames || 0) / 2) + 1;
     for (let f = f0 - half; f <= f0 + half; f++) planned.add(f);
   }
+  // a camera that swings fast between subjects changes every pixel on purpose
+  for (const s of sb.shots) {
+    const T = s.camera.track;
+    if (!T) continue;
+    for (let i = 1; i < T.x.length; i++) if (Math.abs(T.x[i] - T.x[i - 1]) * (sb.video.height / T.h[i]) > 24) { const f = Math.round((T.t0 + i / T.rate) * fps); for (let k = f - 1; k <= f + 1; k++) planned.add(k); }
+  }
   // expression changes pop on purpose (style squash), gestures start on purpose
   const sq = (style.motion?.squashFrames || 2) + 2;
-  for (const e of sb.events) if (e.type === 'expression' || e.type === 'gesture' || e.type === 'punch' || e.type === 'shake' || e.type === 'prop' || e.type === 'posture') {
+  for (const e of sb.events) if (e.type === 'expression' || e.type === 'gesture' || e.type === 'punch' || e.type === 'shake' || e.type === 'prop' || e.type === 'posture' || e.type === 'hold' || e.type === 'drop' || e.type === 'visible' || e.type === 'look') {
     const f0 = Math.round(e.t * fps);
     for (let f = f0 - 1; f <= f0 + sq + Math.round((e.dur || 0) * fps * (e.type === 'prop' ? 1 : 0)); f++) planned.add(f);
   }
@@ -152,7 +158,9 @@ export async function run(dir, args = {}) {
     }
     const speaker = sb.lines.find((l) => t >= l.start && t <= l.end)?.speaker;
     const shot = Lf.shot;
-    if (speaker && shot.type !== 'insert' && shot.subjects.includes(speaker)) {
+    // while a moving camera is still arriving on the next speaker, the face is allowed to be on its way in
+    const arriving = shot.camera.track && (t - shot.start < 0.75 || shot.end - t < 0.45);
+    if (speaker && shot.type !== 'insert' && shot.subjects.includes(speaker) && !arriving) {
       const face = Lf.faces.find((x) => x.id === speaker);
       if (!face || face.cut > 0.1) faceCut.push(f);
     }

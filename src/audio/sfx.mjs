@@ -1,4 +1,4 @@
-// Sound effects synthesized from code (no samples): door, bolt, clink, knock, whoosh.
+// Sound effects synthesized from code (no samples): door, bolt, clink, knock, whoosh, step.
 // The director places them as "sfx" events; `da mix` renders them into build/sfx.wav and mixes them in
 // (not ducked — they are part of the action). Deterministic: same storyboard -> same file.
 import path from 'node:path';
@@ -66,6 +66,13 @@ export const SFX = {
     for (const k of [0, 0.18, 0.36]) add(out, partials(Math.round(0.2 * SR), [[120, 0.9, 25], [320, 0.4, 40]], r), Math.round(k * SR));
     return out;
   },
+  // one footfall: a soft heel thump and a little grit
+  step(r) {
+    const n = Math.round(0.16 * SR), out = new Float32Array(n), f = 92 + r() * 34;
+    add(out, partials(n, [[f, 0.9, 42], [f * 2.3, 0.3, 70]], r));
+    add(out, noise(Math.round(0.06 * SR), r, 80, 2600), 0, 0.35);
+    return out;
+  },
   whoosh(r) {
     const n = Math.round(0.45 * SR), x = noise(n, r, 0, 0);
     for (let i = 0; i < n; i++) x[i] *= Math.sin(Math.PI * i / n) ** 2 * 0.5;
@@ -75,7 +82,7 @@ export const SFX = {
 
 /** Other names (Turkish included) for the built-in effects; a file with any of these names replaces the built-in one. */
 export const SFX_ALIASES = {
-  door: ['kapi', 'kapikapanma'], bolt: ['surgu', 'kilit'], clink: ['tikirti', 'kase'], knock: ['tiklama', 'kapivurma'], whoosh: ['hisirti', 'gecis'],
+  door: ['kapi', 'kapikapanma'], bolt: ['surgu', 'kilit'], clink: ['tikirti', 'kase'], knock: ['tiklama', 'kapivurma'], whoosh: ['hisirti', 'gecis'], step: ['adim', 'ayaksesi', 'footstep'],
 };
 
 /** Find a sound by name: the user's file in sfx/ first, then a built-in. Returns { file } | { builtin } | null. */

@@ -32,13 +32,13 @@ export function timingFor(dialogue, rate = 4.6) {
   return { source: 'estimate', estimated: true, duration: +(t + 1).toFixed(3), voice: null, lines };
 }
 
-export function makeStoryboard({ text = SAMPLE, style = 'kesik-kagit', format = '9:16', captions = 'word' } = {}) {
+export function makeStoryboard({ text = SAMPLE, style = 'kesik-kagit', format = '9:16', captions = 'word', camera = 'cut', staging = null } = {}) {
   const dialogue = parseDialogueText(text);
   dialogue.title = dialogue.title || 'Test';
   const characters = dialogue.speakers.filter((s) => !s.narrator).map((s, i) => autoCharacter(s, i, dialogue.lines));
   const timing = timingFor(dialogue);
   const st = loadStyle(style);
   const [w, h] = FORMATS[format];
-  const cfg = { ...DEFAULTS, captions, fps: 30, video: { width: w, height: h, fps: 30 } };
-  return { sb: direct({ dialogue, characters, timing, envelope: null, style: st, cfg }), style: st, cfg, dialogue };
+  const cfg = { ...DEFAULTS, captions, fps: 30, video: { width: w, height: h, fps: 30 }, director: { ...DEFAULTS.director, camera } };
+  return { sb: direct({ dialogue, characters, timing, envelope: null, style: st, cfg, staging }), style: st, cfg, dialogue };
 }

@@ -57,6 +57,19 @@ Ali: Is that a key?
 - Narration is an ordinary line for timing: with per-line audio it gets its own numbered file, in script order, and its captions are shown like any other line.
 - A scene with only narration has an empty stage, and the camera looks around the set. `@cast` (or `@sahnede`) puts people on it.
 
+### A story with no speech
+
+Timed directions alone are enough, if the script says who is in it:
+
+```
+@cast Hoca, Komşu
+
+0–5 sn — Hoca kazanı kapının önüne bırakır.
+5–10 sn — Komşu tencereyi çıkarır.
+```
+
+The agent then stages it in `staging.json` (docs/STAGING.md).
+
 ### Sound effects in the script
 ```markdown
 @sfx thunder                 ← just before the next line

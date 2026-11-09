@@ -4,6 +4,7 @@ import { darken, mix } from '../color.mjs';
 import { armFromAngles, solveIK } from '../poses.mjs';
 import { arcPts, quadPts, circlePts } from '../shapes.mjs';
 import { wear } from '../wardrobe.mjs';
+import { footOf, placeHeld } from '../motion.mjs';
 
 export const BASE_HEIGHT = 900;
 
@@ -85,7 +86,7 @@ function hairShapes(m, style, color, dir) {
 
 function faceShapes(ch, m, st, ink, skin) {
   const r = m.headR, cy = m.headCY, dir = st.dir, e = st.expr;
-  const fx = dir * r * 0.13 + e.look[0] * dir * r * 0.04;
+  const fx = dir * r * (0.13 + 0.17 * (st.turn || 0)) + e.look[0] * dir * r * 0.04;
   const out = [];
   const eyeR = r * 0.085 * (ch.eyes?.size || 1) * e.eye;
   const ey = cy + r * 0.04 + e.look[1] * r * 0.03;
@@ -199,34 +200,46 @@ export function build(ch, st, env) {
   const items = [];
 
   // legs (a robe covers them: only the shoes show)
-  const lw = m.H * 0.07, lx = m.H * 0.065 * m.W;
-  if (ch.body?.shape !== 'robe') {
-    items.push({ k: 'rrect', x: -lx - lw / 2, y: -m.legH, w: lw, h: m.legH, r: lw * 0.2, fill: cols.legs });
-    items.push({ k: 'rrect', x: lx - lw / 2, y: -m.legH, w: lw, h: m.legH, r: lw * 0.2, fill: cols.legs });
+  const lw = m.H * 0.07, lx = m.H * 0.065 * m.W, W = st.walk;
+  if (W) {
+    // walking: seen from the side, the legs swing from one hip and only the feet leave the ground
+    for (const k of [-1, 1]) {
+      const { dx, lift } = footOf(W, k, m.legH, dir), hip = k * lx * 0.4;
+      if (ch.body?.shape !== 'robe') items.push({ k: 'stroke', pts: [[hip, -m.legH], [hip + dx, -lift - lw * 0.18]], w: lw, fill: cols.legs });
+      items.push({ k: 'ellipse', x: hip + dx + dir * lw * 0.28, y: -lift - lw * 0.18, rx: lw * 0.78, ry: lw * 0.3, fill: cols.legs, noShadow: true });
+    }
+  } else {
+    if (ch.body?.shape !== 'robe') {
+      items.push({ k: 'rrect', x: -lx - lw / 2, y: -m.legH, w: lw, h: m.legH, r: lw * 0.2, fill: cols.legs });
+      items.push({ k: 'rrect', x: lx - lw / 2, y: -m.legH, w: lw, h: m.legH, r: lw * 0.2, fill: cols.legs });
+    }
+    items.push({ k: 'ellipse', x: -lx - lw * 0.15, y: -lw * 0.18, rx: lw * 0.75, ry: lw * 0.3, fill: cols.legs, noShadow: true });
+    items.push({ k: 'ellipse', x: lx + lw * 0.15, y: -lw * 0.18, rx: lw * 0.75, ry: lw * 0.3, fill: cols.legs, noShadow: true });
   }
-  items.push({ k: 'ellipse', x: -lx - lw * 0.15, y: -lw * 0.18, rx: lw * 0.75, ry: lw * 0.3, fill: cols.legs, noShadow: true });
-  items.push({ k: 'ellipse', x: lx + lw * 0.15, y: -lw * 0.18, rx: lw * 0.75, ry: lw * 0.3, fill: cols.legs, noShadow: true });
 
   // upper body group (breathing scales around the hip)
   const upper = [];
   const hip = -m.legH + 22;
   const headGroup = [];
-  const worn = wear(ch, st, anchors(m, ch), env);
+  const worn = wear(ch, st, { ...anchors(m, ch), fx: 0.13 + 0.17 * (st.turn || 0) }, env);
   const hair = hairShapes(m, worn.hidesHair ? 'none' : ch.hair?.style || 'short', cols.hair, dir);
   const acc = accessoryShapes(ch, m, st, cols);
   // order: back hair, head, front hair, then the face on top (brows must never hide under a fringe)
   headGroup.push(...worn.back, ...hair.back.map((s) => ({ ...s })), headShape(m, ch.head?.shape || 'round', cols.skin), ...hair.front);
   headGroup.push(...faceShapes(ch, m, st, cols.ink, cols.skin), ...worn.face, ...acc.head, ...acc.top, ...worn.hat);
 
+  const hands = {};
   const arm = (k) => {
     const side = k === near ? st.pose.near : st.pose.far;
     const S = [k * m.topW * 0.44, m.torsoTop + m.H * 0.045];
     const l1 = m.H * 0.17, l2 = m.H * 0.16;
     let E, Hd;
-    if (side.target) {
+    if (side.at) ({ E, H: Hd } = solveIK(S, [side.at[0] * m.H * dir, -side.at[1] * m.H], l1, l2, k > 0 ? -1 : 1));
+    else if (side.target) {
       const T = [side.target[0] * m.headR * dir, m.headCY + side.target[1] * m.headR];
       ({ E, H: Hd } = solveIK(S, T, l1, l2, k > 0 ? -1 : 1));
     } else ({ E, H: Hd } = armFromAngles(S, k, side.sh, side.el, l1, l2));
+    hands[k === near ? 'near' : 'far'] = Hd;
     const g = [
       { k: 'stroke', pts: [S, E], w: limbW, fill: cols.body },
       { k: 'stroke', pts: [E, Hd], w: limbW * 0.92, fill: cols.body },
@@ -235,14 +248,15 @@ export function build(ch, st, env) {
     if (env.style.character?.jointPins) g.push({ k: 'circle', x: S[0], y: S[1], r: m.H * 0.011, fill: cols.ink, feature: true }, { k: 'circle', x: E[0], y: E[1], r: m.H * 0.011, fill: cols.ink, feature: true });
     return g;
   };
-  upper.push(...arm(far));
+  const farArm = arm(far), nearArm = arm(near), held = placeHeld(st.held, hands, dir);
+  upper.push(...held.behind, ...farArm);
   upper.push({ k: 'poly', pts: torsoPts(m, ch.body?.shape || 'trapezoid'), fill: cols.body });
   upper.push(...worn.over, ...acc.neck);
   const neckY = m.torsoTop + m.headR * 0.1;
   upper.push({ k: 'group', tf: { x: 0, y: neckY, rot: st.headTilt + st.pose.head * dir }, items: headGroup.map((s) => shift(s, 0, -neckY)) });
-  upper.push(...arm(near));
+  upper.push(...held.front, ...nearArm);
 
-  items.push({ k: 'group', tf: { x: 0, y: hip, rot: st.pose.lean * dir, sy: breathe, sx: 1 / Math.sqrt(breathe) }, items: upper.map((s) => shift(s, 0, -hip)) });
+  items.push({ k: 'group', tf: { x: 0, y: hip + (st.pose.crouch || 0), rot: st.pose.lean * dir, sy: breathe, sx: 1 / Math.sqrt(breathe) }, items: upper.map((s) => shift(s, 0, -hip)) });
   return { items, metrics: m };
 }
 

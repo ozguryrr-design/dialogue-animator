@@ -4,6 +4,7 @@ import { armFromAngles, solveIK } from '../poses.mjs';
 import { arcPts, quadPts } from '../shapes.mjs';
 import { darken } from '../color.mjs';
 import { wear } from '../wardrobe.mjs';
+import { footOf, placeHeld } from '../motion.mjs';
 
 export const BASE_HEIGHT = 760;
 
@@ -32,21 +33,25 @@ export function build(ch, st, env) {
   const dir = st.dir, e = st.expr, H = m.H, w = m.W;
   const items = [];
   const limb = H * 0.075;
+  const hands = {};
   const arm = (k) => {
     const side = k === dir ? st.pose.near : st.pose.far;
     const S = [k * w * 0.4, -H * 0.4];
     const l1 = H * 0.13, l2 = H * 0.12;
     let E, Hd;
-    if (side.target) ({ E, H: Hd } = solveIK(S, [side.target[0] * m.headR * dir, m.faceY + side.target[1] * m.headR * 0.8], l1, l2, k > 0 ? -1 : 1));
+    if (side.at) ({ E, H: Hd } = solveIK(S, [side.at[0] * H * dir, -side.at[1] * H], l1, l2, k > 0 ? -1 : 1));
+    else if (side.target) ({ E, H: Hd } = solveIK(S, [side.target[0] * m.headR * dir, m.faceY + side.target[1] * m.headR * 0.8], l1, l2, k > 0 ? -1 : 1));
     else ({ E, H: Hd } = armFromAngles(S, k, side.sh + 0.25, side.el, l1, l2));
+    hands[k === dir ? 'near' : 'far'] = Hd;
     return { k: 'stroke', pts: [S, E, Hd], w: limb, fill: body };
   };
-  items.push(arm(-dir));
+  const farArm = arm(-dir), nearArm = arm(dir), held = placeHeld(st.held, hands, dir);
+  items.push(...held.behind, farArm);
   // feet
-  for (const k of [-1, 1]) items.push({ k: 'ellipse', x: k * w * 0.22, y: -H * 0.02, rx: w * 0.16, ry: H * 0.05, fill: darken(body, 0.25) });
+  for (const k of [-1, 1]) { const { dx, lift } = footOf(st.walk, k, H * 0.3, dir); items.push({ k: 'ellipse', x: k * w * 0.22 + dx, y: -H * 0.02 - lift, rx: w * 0.16, ry: H * 0.05, fill: darken(body, 0.25) }); }
   // hair behind
   const hairC = ch.colors.hair;
-  const worn = wear(ch, st, anchors(m), env);
+  const worn = wear(ch, st, { ...anchors(m), fx: 0.1 + 0.14 * (st.turn || 0) }, env);
   const style = worn.hidesHair ? 'none' : ch.hair?.style || 'short';
   items.push(...worn.back);
   if (style === 'long') for (const k of [-1, 1]) items.push({ k: 'stroke', pts: [[k * w * 0.32, -H * 0.92], [k * w * 0.55, -H * 0.55], [k * w * 0.5, -H * 0.3]], w: H * 0.1, fill: hairC });
@@ -64,7 +69,7 @@ export function build(ch, st, env) {
   if (acc.has('bowtie')) { items.push({ k: 'poly', pts: [[0, -H * 0.36], [-H * 0.07, -H * 0.4], [-H * 0.07, -H * 0.32]], fill: ch.colors.accent }); items.push({ k: 'poly', pts: [[0, -H * 0.36], [H * 0.07, -H * 0.4], [H * 0.07, -H * 0.32]], fill: ch.colors.accent }); }
   items.push(...worn.hat);
   // face
-  const fx = dir * w * 0.06, ey = -H * 0.66 - e.look[1] * H * 0.01;
+  const fx = dir * w * (0.06 + 0.09 * (st.turn || 0)), ey = -H * 0.66 - e.look[1] * H * 0.01;
   const er = H * 0.055 * (ch.eyes?.size || 1) * e.eye;
   for (const k of [-1, 1]) {
     const ex = fx + k * w * 0.2;
@@ -95,6 +100,6 @@ export function build(ch, st, env) {
   } else items.push({ k: 'stroke', pts: quadPts([mx - w * 0.09 * e.width, my - e.curve * H * 0.01], [mx, my + e.curve * H * 0.035], [mx + w * 0.09 * e.width, my - e.curve * H * 0.01 - e.skew * H * 0.015], 10), w: H * 0.016, fill: ink, feature: true });
   if (acc.has('mustache')) for (const k of [-1, 1]) items.push({ k: 'ellipse', x: mx + k * w * 0.05, y: my - H * 0.03, rx: w * 0.06, ry: H * 0.014, fill: hairC });
   items.push(...worn.face);
-  items.push(arm(dir));
+  items.push(...held.front, nearArm);
   return { items, metrics: m };
 }

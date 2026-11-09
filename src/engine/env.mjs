@@ -21,6 +21,17 @@ export function createEnv(sb, style, { createCanvas, hooks = null } = {}) {
     for (const k of Object.keys(m)) m[k].sort((a, b) => a.t - b.t);
     return m;
   };
+  // per scene and per character: moves and appearances only count inside their own scene
+  const perScene = (type) => {
+    const m = {};
+    for (const e of sb.events || []) if (e.type === type) ((m[e.scene] ||= {})[e.target] ||= []).push(e);
+    for (const s of Object.values(m)) for (const k of Object.keys(s)) s[k].sort((a, b) => a.t - b.t);
+    return m;
+  };
+  const attach = {}, holders = {};
+  for (const e of sb.events || []) if (e.type === 'hold' || e.type === 'drop') (attach[e.target] ||= []).push(e);
+  for (const k of Object.keys(attach)) attach[k].sort((a, b) => a.t - b.t);
+  for (const e of sb.events || []) if (e.type === 'hold') { const s = ((holders[e.scene] ||= {})[e.by] ||= []); if (!s.includes(e.target)) s.push(e.target); }
   const body = BODIES[style.character?.body] || BODIES['paper-cut'];
   const bodies = { ...BODIES, ...(hooks?.bodies || {}) };
   return {
@@ -35,7 +46,8 @@ export function createEnv(sb, style, { createCanvas, hooks = null } = {}) {
     chars: Object.fromEntries(sb.characters.map((c) => [c.id, c])),
     scenes: Object.fromEntries(sb.scenes.map((s) => [s.id, s])),
     idx: {
-      expr: by('expression'), gesture: by('gesture'), look: by('look'), posture: by('posture'), prop: by('prop'),
+      expr: by('expression'), gesture: by('gesture'), look: by('look'), posture: by('posture'), prop: by('prop'), gaze: by('gaze'),
+      moves: perScene('move'), visible: perScene('visible'), attach, holders,
       fx: (sb.events || []).filter((e) => e.type === 'fx'), shake: (sb.events || []).filter((e) => e.type === 'shake'),
       punch: (sb.events || []).filter((e) => e.type === 'punch'), fade: (sb.events || []).filter((e) => e.type === 'fade'),
     },

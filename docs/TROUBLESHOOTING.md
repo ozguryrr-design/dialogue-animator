@@ -58,6 +58,14 @@ A growing list of real failures met while building and using this skill. When yo
 47. **A video with no voice and no music failed QA on loudness**: silence has no level to reach, so the check now passes with a note.
 48. **A tall hat was cut off in the wide shot**: framing now counts the height of what a character wears.
 
+49. **"Two characters just stand there, nothing from my story happens"**: only 11 stage directions were understood, and nobody could move or hold anything. Characters now walk, run, tiptoe, carry, give and hide, and the agent writes what happens in `staging.json` (docs/STAGING.md).
+50. **The camera only cut between big faces**: there is now one moving camera per scene that follows the action. For the old behaviour, `"director": { "camera": "cut" }`.
+51. **`staging.json has problems`**: each line names the scene and the entry and usually the fix. `da stage <dir> --check` shows them again. Somebody who does not speak has to be added to the script with `@cast Name`.
+52. **The camera runs past the end of the set and shows empty sky**: sets now repeat wherever the camera goes. Long pieces continue edge to edge and small ones repeat as a group.
+53. **A door was heard closing but never seen** when the same beat also had someone standing up: the shot on the door ended before the door moved, and the two-shot took over. The camera now stays on the door while it moves.
+54. **"has stage directions but nobody to act them out"**: a script with no speech has to name its characters: `@cast Ali, Su`.
+55. **`ffmpeg failed` on `alimiter` in a video with footsteps and no voice or music**: sparse sound effects are not a programme to normalize. They are now left at their own level.
+
 ## Repository / tooling
 23. **`spawnSync` fails with a negative `maxBuffer`** when the buffer size is computed as `1 << 31` (overflows to negative in JavaScript). Use `2 ** 32`.
 24. **Concat list paths on Windows**: write them with forward slashes and single quotes for ffmpeg's concat demuxer.

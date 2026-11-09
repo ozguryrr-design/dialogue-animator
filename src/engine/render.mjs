@@ -5,6 +5,7 @@ import { hash32, rand } from './math.mjs';
 import { drawShapes } from './materials.mjs';
 import { cameraAt, applyView, toScreen } from './camera.mjs';
 import { characterState, postureAt } from './state.mjs';
+import { positionAt, alphaAt } from './motion.mjs';
 import { drawBackground, drawForeground, halftonePattern } from './background.mjs';
 import { drawFx } from './fx.mjs';
 import { captionLayout, drawCaption } from './captions.mjs';
@@ -31,11 +32,14 @@ export function metricsOf(env, ch) {
 }
 
 function drawCharacter(ctx, env, ch, scene, t, seed) {
-  const x = scene.positions[ch.id];
+  const alpha = alphaAt(env, ch, scene, t);
+  if (alpha <= 0) return;
+  const x = positionAt(env, ch, scene, t).x;
   const st = characterState(env, ch, scene, t);
   const { items } = env.body.build(ch, st, env);
   ctx.save();
-  ctx.translate(x, st.postureY || 0);
+  if (alpha < 1) ctx.globalAlpha *= alpha;
+  ctx.translate(x, (st.postureY || 0) + (st.bob || 0));
   if (env.style.family === 'gummy') {
     const m = metricsOf(env, ch);
     ctx.fillStyle = 'rgba(0,0,0,0.32)';
@@ -62,10 +66,10 @@ export function drawShot(ctx, env, k, t) {
   ctx.save();
   applyView(ctx, env, cam);
   drawBackground(ctx, env, scene, cam, seed, t);
-  // inserts show the object alone; everything else shows the cast (focus drawn last, in front)
-  const order = shot.type === 'insert' ? [] : [...scene.cast].sort((a, b) => (a === shot.focus) - (b === shot.focus));
+  // automatic inserts show the object alone; everything else shows the cast (focus drawn last, in front)
+  const order = shot.type === 'insert' && !shot.withCast ? [] : [...scene.cast].sort((a, b) => (a === shot.focus) - (b === shot.focus));
   for (const id of order) drawCharacter(ctx, env, env.chars[id], scene, t, seed);
-  drawForeground(ctx, env, scene, seed, t);
+  drawForeground(ctx, env, scene, seed, t, cam);
   if (shot.type !== 'insert') {
     const visible = new Set(facesInShot(env, k, t).filter((f) => f.visible && f.cut < 0.2).map((f) => f.id));
     drawFx(ctx, env, scene, t, seed, (ch) => metricsOf(env, ch), visible);
@@ -81,10 +85,10 @@ export function facesInShot(env, k, t) {
   return scene.cast.map((id) => {
     const ch = env.chars[id], m = metricsOf(env, ch);
     const py = postureAt(env, ch, scene, t, m.H).y;
-    const [cx, cy] = toScreen(env, cam, scene.positions[id], (m.faceY ?? m.headCY) + py);
+    const [cx, cy] = toScreen(env, cam, positionAt(env, ch, scene, t).x, (m.faceY ?? m.headCY) + py);
     const r = (m.faceR ?? m.headR) * s;
     const outX = Math.max(0, r - cx, cx + r - env.W), outY = Math.max(0, r - cy, cy + r - env.H);
-    return { id, cx, cy, r, cut: Math.min(1, Math.max(outX, outY) / (2 * r)), visible: cx + r > 0 && cx - r < env.W && cy + r > 0 && cy - r < env.H };
+    return { id, cx, cy, r, cut: Math.min(1, Math.max(outX, outY) / (2 * r)), visible: alphaAt(env, ch, scene, t) > 0 && cx + r > 0 && cx - r < env.W && cy + r > 0 && cy - r < env.H };
   });
 }
 

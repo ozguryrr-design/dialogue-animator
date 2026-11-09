@@ -25,7 +25,12 @@ The director turns lines and their timings into shots, camera moves and characte
 - **After three singles, re-establish** with a two-shot (if the line is ≤ 3 s).
 - **Speaker on screen ≥ 60 %** of the speaking time. The lint warns below that; the example reaches 95 %.
 
+## Movement
+Everything in `staging.json` (docs/STAGING.md). With no file, a draft reads the verbs of the script (walks, runs, takes, gives, hides, carries, puts down), has someone walk in, and adds small steps on strong lines.
+
 ## Camera
+By default there is one camera per scene. `src/director/blocking.mjs` follows the shots frame by frame with a critically damped spring and aims a little ahead, so it arrives with the action and shots run into each other. Set `"director": { "camera": "cut" }` in `project.json` for separate static shots with hard cuts; the rest of this section describes those.
+
 - **No static holds.** Every shot creeps in by `camera.pushPerFrame` (paper 0.12 %/f, jöle 0.25 %/f, riso 0.08 %/f), toward the face of the subject. Strong close-ups use `punchPushPerFrame`. The total creep is capped at 15 %.
 - **Group shots creep only as far as the empty margin allows** (nobody gets cut). Two-shots drift 5 % toward whoever speaks.
 - **Pan speed** is capped at `camera.maxPanPxPerFrame` at output resolution.

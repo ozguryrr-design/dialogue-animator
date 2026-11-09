@@ -29,25 +29,45 @@ export function halftonePattern(ctx, env, pitch, r) {
   return pat;
 }
 
-/** Prop options at time t: "prop" events animate numbers (door open 1 -> 0) or toggle visibility. */
+/** Prop state at time t: "prop" events animate numbers (door open 1 -> 0, x, y) or toggle visibility; hold and drop move it between hands and floor. */
 export function propState(env, p, t) {
   const opts = { ...(p.opts || {}) };
-  let visible = p.visible !== false;
+  let visible = p.visible !== false, x = p.x, y = p.y, held = false;
   for (const e of (env?.idx?.prop?.[p.id]) || []) {
     if (t < e.t) break;
     if (e.key === 'visible') { visible = !!e.value; continue; }
-    const from = opts[e.key] ?? 0, u = Math.min(1, (t - e.t) / (e.dur || 0.001));
-    const k = u * u * (3 - 2 * u);
+    const u = Math.min(1, (t - e.t) / (e.dur || 0.001)), k = u * u * (3 - 2 * u);
+    if (e.key === 'x') { x += (e.value - x) * k; continue; }
+    if (e.key === 'y') { y += (e.value - y) * k; continue; }
+    const from = opts[e.key] ?? 0;
     opts[e.key] = from + (e.value - from) * k;
   }
-  return { opts, visible };
+  for (const e of (env?.idx?.attach?.[p.id]) || []) {
+    if (t < e.t) break;
+    if (e.type === 'hold') held = true;
+    else { held = false; visible = true; x = e.x ?? x; y = e.y ?? y; }
+  }
+  return { opts, visible, x, y, held };
 }
 
-export function propItems(p, env = null, t = 0) {
-  const { opts, visible } = propState(env, p, t);
-  if (!visible) return null;
+export function propItems(p, env = null, t = 0, shift = [0, 0]) {
+  const { opts, visible, x, y, held } = propState(env, p, t);
+  if (!visible || held) return null;
   const g = geometryOf(p, opts);
-  return { k: 'group', tf: { x: p.x, y: p.y, sx: (p.flip ? -1 : 1) * (p.s || 1), sy: p.s || 1 }, items: g.items, id: p.id };
+  return { k: 'group', tf: { x: x + shift[0], y: y + shift[1], sx: (p.flip ? -1 : 1) * (p.s || 1), sy: p.s || 1 }, items: g.items, id: p.id };
+}
+
+/** Depth: 1 sits on the characters' plane, less is further away and slides more slowly past the camera, more is closer. */
+function parallax(p, cam) {
+  const d = p.depth ?? 1;
+  return d === 1 || !cam ? [0, 0] : [cam.x * (1 - d), (cam.y + 620) * (1 - d) * 0.5];
+}
+
+function ridge(X0, X1, off) {
+  const pts = [[X0, 0]];
+  for (let x = X0; x <= X1 + 120; x += 120) { const v = x + off; pts.push([x, -445 - 118 * Math.sin(v * 0.0021 + 0.6) - 52 * Math.sin(v * 0.0057 + 2.1)]); }
+  pts.push([X1 + 120, 0]);
+  return pts;
 }
 
 export function drawBackground(ctx, env, scene, cam, seed, t = 0) {
@@ -59,7 +79,7 @@ export function drawBackground(ctx, env, scene, cam, seed, t = 0) {
   const base = [];
   if (bg.place === 'exterior') {
     fill(X0, Math.min(v.y0, -4000), X1 - X0, Math.abs(Math.min(v.y0, -4000)) + 10, gradientOr(ctx, env, bg.sky || 'sky', -2000, 0));
-    if (bg.hills) base.push({ k: 'poly', pts: [[X0, -330], [-1400, -520], [-700, -380], [-100, -560], [600, -360], [1300, -540], [X1, -380], [X1, 0], [X0, 0]], fill: bg.hills, noShadow: false });
+    if (bg.hills) base.push({ k: 'poly', pts: ridge(X0, X1, -cam.x * 0.65), fill: bg.hills, noShadow: false });
     base.push({ k: 'poly', pts: [[X0, bg.horizon || -40], [0, (bg.horizon || -40) - 6], [X1, bg.horizon || -40], [X1, 4000], [X0, 4000]], fill: bg.ground || 'ground' });
   } else {
     fill(X0, Math.min(v.y0, -4000), X1 - X0, Math.abs(Math.min(v.y0, -4000)) + 10, gradientOr(ctx, env, bg.wall || 'wall', -1800, 0));
@@ -82,8 +102,8 @@ export function drawBackground(ctx, env, scene, cam, seed, t = 0) {
   }
   const floorProps = (bg.props || []).filter((p) => p.layer === 'floor');
   const backProps = (bg.props || []).filter((p) => !p.layer || p.layer === 'back');
-  drawShapes(ctx, floorProps.map((p) => propItems(p, env, t)), env, seed + 23);
-  drawShapes(ctx, backProps.map((p) => propItems(p, env, t)), env, seed + 37);
+  drawShapes(ctx, floorProps.map((p) => propItems(p, env, t, parallax(p, cam))), env, seed + 23);
+  drawShapes(ctx, backProps.map((p) => propItems(p, env, t, parallax(p, cam))), env, seed + 37);
   // night / mood tint over the set only (characters stay lit, as if by lamplight)
   if (bg.tint) {
     ctx.save();
@@ -94,7 +114,7 @@ export function drawBackground(ctx, env, scene, cam, seed, t = 0) {
   }
 }
 
-export function drawForeground(ctx, env, scene, seed, t = 0) {
+export function drawForeground(ctx, env, scene, seed, t = 0, cam = null) {
   const front = (scene.background?.props || []).filter((p) => p.layer === 'front');
-  if (front.length) drawShapes(ctx, front.map((p) => propItems(p, env, t)), env, seed + 53);
+  if (front.length) drawShapes(ctx, front.map((p) => propItems(p, env, t, parallax(p, cam))), env, seed + 53);
 }

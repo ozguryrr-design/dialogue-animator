@@ -19,32 +19,42 @@ const G = {
   nod: (p) => ({ head: 0.07 * Math.sin(p * TAU * 2) }),
   // reach down-forward to set something on a table, then come back
   place: (p) => ({ near: { sh: 0.55 + 0.45 * Math.sin(Math.PI * Math.min(1, p * 1.2)), el: 0.35 }, lean: 0.05 * Math.sin(Math.PI * p), head: 0.05 }),
+  // bend down and reach for something low (taking it, or setting it down)
+  reach: (p) => { const b = Math.sin(Math.PI * p); return { near: { at: [0.26, 0.42 - 0.2 * b] }, lean: 0.26 * b, head: 0.1 * b, crouch: 70 * b }; },
+  // hold an arm out to someone
+  give: (p) => { const b = Math.sin(Math.PI * p); return { near: { at: [0.2 + 0.17 * b, 0.5 + 0.04 * b] }, lean: 0.06 * b }; },
+  // tuck something away behind the back
+  hide: (p) => { const b = Math.sin(Math.PI * p); return { far: { at: [-0.1 - 0.09 * p, 0.42 - 0.06 * p] }, head: -0.05 * b }; },
 };
 export const GESTURES = Object.keys(G);
 
+const fixed = (s) => s.target || s.at;
 const mixSide = (a, b, u) => {
-  if (b.target || a.target) return u > 0.35 ? (b.target ? b : a) : a;
+  if (a.at && b.at) return { at: [a.at[0] + (b.at[0] - a.at[0]) * u, a.at[1] + (b.at[1] - a.at[1]) * u] };
+  if (fixed(a) || fixed(b)) return u > 0.35 ? b : a;
   return { sh: a.sh + (b.sh - a.sh) * u, el: a.el + (b.el - a.el) * u };
 };
 
 /**
  * Pose at time `t` given the gesture events of one character ({t, value, dur} sorted by t).
- * `inF` = blend-in seconds. Returns { near, far, lean, head }.
+ * `inS` = blend-in seconds, `base` = the pose between gestures (arms carrying something, for instance).
+ * Returns { near, far, lean, head, crouch }.
  */
-export function poseAt(events, t, inS = 0.2) {
-  let pose = { ...REST };
+export function poseAt(events, t, inS = 0.2, base = REST) {
+  let pose = { crouch: 0, ...base };
   for (const ev of events) {
     if (t < ev.t - inS || t > ev.t + ev.dur + inS) continue;
     const fn = G[ev.value];
     if (!fn) continue;
     const p = clamp((t - ev.t) / Math.max(0.1, ev.dur));
-    const target = { ...REST, ...fn(p) };
+    const target = { crouch: 0, ...base, ...fn(p) };
     const u = Math.min(ease.smooth((t - (ev.t - inS)) / inS), ease.smooth((ev.t + ev.dur + inS - t) / inS));
     pose = {
       near: mixSide(pose.near, target.near || REST.near, u),
       far: mixSide(pose.far, target.far || REST.far, u),
       lean: pose.lean + ((target.lean || 0) - pose.lean) * u,
       head: pose.head + ((target.head || 0) - pose.head) * u,
+      crouch: pose.crouch + ((target.crouch || 0) - pose.crouch) * u,
     };
   }
   return pose;

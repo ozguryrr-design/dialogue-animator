@@ -197,7 +197,7 @@ function finish({ title, lines, speakers, scenes, beats = [], sfx = [], narrator
   for (const s of usedScenes) {
     if (!s.setting) s.setting = findSetting([...out.filter((l) => l.scene === s.id).map((l) => l.text), ...outBeats.filter((b) => b.scene === s.id).map((b) => b.text)].join(' ')) || null;
   }
-  const allText = out.map((l) => l.text).join(' ');
+  const allText = out.map((l) => l.text).join(' ') || outBeats.map((b) => b.text).join(' ');
   // a narrator is a speaker who is only ever heard: no character, no place on stage
   const onStage = new Set(scenes.flatMap((s) => s.cast || []));
   const allSpeakers = speakers.map((s) => {
@@ -218,7 +218,9 @@ export async function run(dir, cli = {}) {
   const { cfg, decisions, files } = loadConfig(dir, cli);
   if (!files.dialogue) throw new Error(`No dialogue file in ${files.dir}. Create dialogue.md (see "da doctor").`);
   const d = parseDialogueFile(files.dialogue);
-  if (!d.lines.length) throw new Error(`${rel(files.dialogue)} has no "Name: text" lines. Every line needs its speaker in front, like   Ali: Merhaba.   If you cannot tell who says what, ask the user; do not guess.`);
+  const onStage = d.scenes.some((s) => s.cast?.length);
+  if (!d.lines.length && d.beats.length && !onStage) throw new Error(`${rel(files.dialogue)} has stage directions but nobody to act them out. Say who is on stage with a line like   @cast Ali, Su   If you cannot tell who is in the story, ask the user; do not guess.`);
+  if (!d.lines.length && !d.beats.length) throw new Error(`${rel(files.dialogue)} has no "Name: text" lines. Every line needs its speaker in front, like   Ali: Merhaba.   If you cannot tell who says what, ask the user; do not guess. A story with no speech at all is written as timed directions (0-5 sn - what happens) with @cast naming who is in it.`);
   d.title = d.title || cfg.title || path.basename(files.dir);
   if (cfg.language && cfg.language !== 'auto') d.language = cfg.language;
   d.source = rel(files.dialogue, files.dir);
@@ -232,6 +234,7 @@ export async function cli(args) {
   const dir = args._[0] || '.';
   log.step('parse');
   const { dialogue: d, files } = await run(dir, args);
+  if (!d.lines.length) log.info('no speech: the story is told by its stage directions only');
   log.ok(`${d.lines.length} lines, ${d.speakers.length} speakers (${d.speakers.map((s) => s.name).join(', ')}), ${d.scenes.length} scene(s), language ${d.language}`);
   const byEmo = {};
   for (const l of d.lines) byEmo[l.emotion] = (byEmo[l.emotion] || 0) + 1;

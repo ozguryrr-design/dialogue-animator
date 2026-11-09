@@ -2,6 +2,7 @@
 import { drawShapes } from './materials.mjs';
 import { arcPts } from './shapes.mjs';
 import { clamp, ease } from './math.mjs';
+import { positionAt } from './motion.mjs';
 
 function symbol(kind, s) {
   const out = [];
@@ -58,7 +59,7 @@ export function drawFx(ctx, env, scene, t, seed, metricsOf, visible = null) {
     if (e.scene && e.scene !== scene.id) continue;
     const m = metricsOf(ch);
     const dir = scene.facing?.[ch.id] ?? 1;
-    const x = scene.positions[ch.id] + dir * m.headR * 1.25, y = m.headCY - m.headR * 1.25;
+    const x = positionAt(env, ch, scene, t).x + dir * m.headR * 1.25, y = m.headCY - m.headR * 1.25;
     const k = (t - e.t) * env.fps, end = ((e.t + (e.dur || 0.8)) - t) * env.fps;
     const stepped = (env.style.motion?.characterFps || env.fps) < env.fps;
     const pop = stepped ? (k < 2 ? 0.6 : 1) : ease.outBack(clamp(k / 5));

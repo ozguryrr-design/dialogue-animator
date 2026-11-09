@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dialogue-animator/schemas/staging.schema.json",
+  "title": "staging.json",
+  "description": "What happens in the video: who walks where, what they carry, where the camera goes. See docs/STAGING.md.",
+  "type": "object",
+  "required": ["scenes"],
+  "properties": {
+    "status": { "enum": ["draft", "final"] },
+    "idea": { "type": "string" },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["scene"],
+        "properties": {
+          "scene": { "type": "string" },
+          "keepScriptActions": { "type": "boolean" },
+          "footsteps": { "type": "boolean" },
+          "objects": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "part": { "type": "string" },
+                "use": { "type": "string" },
+                "draw": { "type": "array" },
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "s": { "type": "number" },
+                "w": { "type": "number" },
+                "h": { "type": "number" },
+                "layer": { "enum": ["back", "floor", "front"] },
+                "hidden": { "type": "boolean" },
+                "hold": { "enum": ["near", "both", "behind"] },
+                "holdScale": { "type": "number" }
+              }
+            }
+          },
+          "start": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "x": { "type": "number" },
+                "face": { "enum": ["left", "right"] },
+                "sit": { "type": "boolean" },
+                "hidden": { "type": "boolean" },
+                "holding": { "type": "string" },
+                "hand": { "enum": ["near", "both", "behind"] }
+              }
+            }
+          },
+          "do": { "type": "array", "items": { "type": "object" } },
+          "camera": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "size": { "enum": ["wide", "two", "group", "full", "medium", "close", "close-up", "reaction", "ots"] },
+                "speed": { "enum": ["fast", "normal", "slow"] },
+                "cut": { "type": "boolean" },
+                "whip": { "type": "boolean" },
+                "crane": { "enum": ["up", "down"] },
+                "drift": { "enum": ["left", "right"] },
+                "push": { "type": "number" },
+                "why": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

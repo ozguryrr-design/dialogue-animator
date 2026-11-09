@@ -35,6 +35,7 @@ Never asked, but available:
 }
 ```
 
+- `director.camera`: `follow` (default) is one moving camera per scene that tracks the action; `cut` gives separate static shots with hard cuts.
 - `voice`: `auto` uses `audio/` when present; `babble` synthesizes a gibberish voice per character (useful for drafts or when no recording exists); `none` means silent.
 - `seed` changes blinks, music and small variations. The same seed always gives the same video.
 

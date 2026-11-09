@@ -70,6 +70,23 @@ export const ACTIONS = [
   { stems: ['omuz silk', 'shrugs'], gesture: 'shrug' },
 ];
 
+/** Verbs of movement and handling, read by the first draft of staging.json (src/project/staging.mjs). */
+export const STAGE_VERBS = [
+  { stems: ['yuruy', 'yurur', 'walks', 'walking', 'strolls'], do: 'walk' },
+  { stems: ['kosar', 'kosuy', 'runs', 'running', 'rushes', 'sprints'], do: 'run' },
+  { stems: ['yaklas', 'gelir', 'geliyor', 'girer', 'giriyor', 'enters', 'comes in', 'approaches', 'arrives'], do: 'approach' },
+  { stems: ['uzaklas', 'gider', 'gidiyor', 'ayrilir', 'kacar', 'kaciyor', 'leaves', 'exits', 'walks away', 'goes away', 'flees'], do: 'leave' },
+  { stems: ['sakla', 'gizle', 'hides', 'conceals'], do: 'hide' },
+  { stems: ['verir', 'veriyor', 'uzatir', 'gives', 'hands'], do: 'give' },
+  { stems: ['cikarir', 'cikartir', 'alir', 'aliyor', 'kapar', 'takes', 'picks up', 'pulls out', 'grabs'], do: 'take' },
+  { stems: ['getirir', 'getiriyor', 'tasir', 'tasiyor', 'carries', 'brings'], do: 'carry' },
+  { stems: ['birak', 'koyar', 'koyuyor', 'puts down', 'sets down', 'places'], do: 'put' },
+  { stems: ['bakar', 'bakiyor', 'goz ucuyla', 'looks at', 'glances'], do: 'look' },
+];
+
+/** Things people handle -> a catalogue part. A trailing $ means the whole word only (bag must not match "bagirir"). */
+export const CARRY_WORDS = { kazan: 'cauldron', tencere: 'pot', kase: 'bowl', cuval: 'sack', kutu: 'box', sandik: 'box', sepet: 'basket', kilic: 'sword', mektup: 'letter', anahtar: 'key', canta: 'bag', fener: 'lantern', cauldron: 'cauldron', basket: 'basket', sword: 'sword', letter: 'letter', 'pot$': 'pot', 'sack$': 'sack', 'box$': 'box', 'key$': 'key', 'bag$': 'bag', 'bowl$': 'bowl' };
+
 /** Split a direction into sentences and turn each into actions. `names` maps folded first names -> speaker id. */
 export function parseActions(text, names = {}, fallbackTarget = null) {
   const out = [];
