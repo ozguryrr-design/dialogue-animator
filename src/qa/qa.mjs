@@ -101,8 +101,10 @@ export async function run(dir, args = {}) {
   // ---- audio ----
   const L = measureLoudness(video);
   const target = cfg.mix.lufs;
-  add('audio', 'loudness', L.I !== null && Math.abs(L.I - target) <= 1 ? 'pass' : 'fail', `${L.I} LUFS integrated (target ${target} ±1), LRA ${L.LRA} LU`);
-  add('audio', 'true peak', L.TP !== null && L.TP <= -1.0 ? 'pass' : 'fail', `${L.TP} dBTP (limit -1.0)`);
+  const noBed = !sb.audio?.voice && cfg.music?.mode === 'none';
+  if (noBed) add('audio', 'loudness', 'pass', `${L.I} LUFS: no voice and no music were asked for, so there is no target level`);
+  else add('audio', 'loudness', L.I !== null && Math.abs(L.I - target) <= 1 ? 'pass' : 'fail', `${L.I} LUFS integrated (target ${target} ±1), LRA ${L.LRA} LU`);
+  add('audio', 'true peak', noBed || (L.TP !== null && L.TP <= -1.0) ? 'pass' : 'fail', `${L.TP} dBTP (limit -1.0)`);
   const sil = ffmpegSync(['-nostats', '-i', video, '-map', '0:a:0', '-af', 'silencedetect=n=-50dB:d=2', '-f', 'null', '-']).stderr;
   const longSil = (sil.match(/silence_duration: [\d.]+/g) || []).length;
   add('audio', 'long silences', longSil ? 'warn' : 'pass', longSil ? `${longSil} silence(s) longer than 2 s` : 'none');

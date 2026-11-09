@@ -3,6 +3,7 @@
 import { armFromAngles, solveIK } from '../poses.mjs';
 import { arcPts, quadPts } from '../shapes.mjs';
 import { darken } from '../color.mjs';
+import { wear } from '../wardrobe.mjs';
 
 export const BASE_HEIGHT = 760;
 
@@ -16,6 +17,11 @@ export function metrics(ch, style) {
 function blobPath(shape, w, h) {
   const k = { trapezoid: [0.58, 0.38], round: [0.7, 0.46], rect: [0.52, 0.5], pear: [0.66, 0.3], triangle: [0.5, 0.52] }[shape] || [0.58, 0.38];
   return [['M', -w / 2, 0], ['C', -w * k[0], -h * 0.55, -w * k[1], -h, 0, -h], ['C', w * k[1], -h, w * k[0], -h * 0.55, w / 2, 0], ['Z']];
+}
+
+/** Where a costume attaches on this body (src/engine/wardrobe.mjs). */
+export function anchors(m) {
+  return { H: m.H, r: m.W * 0.44, cy: -m.H * 0.72, rim: -m.H * 0.84, fy: -m.H * 0.6, fx: 0.1, shoulderY: -m.H * 0.42, shoulderW: m.W * 0.86, hemY: -m.H * 0.03, hemW: m.W * 0.98 };
 }
 
 export function build(ch, st, env) {
@@ -40,11 +46,14 @@ export function build(ch, st, env) {
   for (const k of [-1, 1]) items.push({ k: 'ellipse', x: k * w * 0.22, y: -H * 0.02, rx: w * 0.16, ry: H * 0.05, fill: darken(body, 0.25) });
   // hair behind
   const hairC = ch.colors.hair;
-  const style = ch.hair?.style || 'short';
+  const worn = wear(ch, st, anchors(m), env);
+  const style = worn.hidesHair ? 'none' : ch.hair?.style || 'short';
+  items.push(...worn.back);
   if (style === 'long') for (const k of [-1, 1]) items.push({ k: 'stroke', pts: [[k * w * 0.32, -H * 0.92], [k * w * 0.55, -H * 0.55], [k * w * 0.5, -H * 0.3]], w: H * 0.1, fill: hairC });
   if (style === 'ponytail') items.push({ k: 'stroke', pts: [[-dir * w * 0.3, -H * 0.95], [-dir * w * 0.62, -H * 0.86], [-dir * w * 0.66, -H * 0.62]], w: H * 0.09, fill: hairC });
   if (style === 'bun') items.push({ k: 'circle', x: 0, y: -H * 1.04, r: H * 0.1, fill: hairC });
   items.push({ k: 'path', cmds: blobPath(ch.body?.shape, w, H), fill: body, gloss: true });
+  items.push(...worn.over);
   // hair on top
   if (style === 'short' || style === 'bob') items.push({ k: 'path', cmds: [['M', -w * 0.36, -H * 0.86], ['Q', 0, -H * 1.1, w * 0.36, -H * 0.86], ['Q', 0, -H * (style === 'bob' ? 0.82 : 0.9), -w * 0.36, -H * 0.86], ['Z']], fill: hairC });
   if (style === 'spiky') for (let i = -1; i <= 1; i++) items.push({ k: 'poly', pts: [[i * w * 0.16 - w * 0.08, -H * 0.97], [i * w * 0.18, -H * 1.14], [i * w * 0.16 + w * 0.08, -H * 0.97]], fill: hairC });
@@ -53,6 +62,7 @@ export function build(ch, st, env) {
   if (acc.has('beanie')) items.push({ k: 'path', cmds: [['M', -w * 0.34, -H * 0.9], ['Q', 0, -H * 1.18, w * 0.34, -H * 0.9], ['Z']], fill: ch.colors.accent });
   if (acc.has('scarf')) items.push({ k: 'stroke', pts: [[-w * 0.44, -H * 0.42], [0, -H * 0.38], [w * 0.44, -H * 0.42]], w: H * 0.07, fill: ch.colors.accent });
   if (acc.has('bowtie')) { items.push({ k: 'poly', pts: [[0, -H * 0.36], [-H * 0.07, -H * 0.4], [-H * 0.07, -H * 0.32]], fill: ch.colors.accent }); items.push({ k: 'poly', pts: [[0, -H * 0.36], [H * 0.07, -H * 0.4], [H * 0.07, -H * 0.32]], fill: ch.colors.accent }); }
+  items.push(...worn.hat);
   // face
   const fx = dir * w * 0.06, ey = -H * 0.66 - e.look[1] * H * 0.01;
   const er = H * 0.055 * (ch.eyes?.size || 1) * e.eye;
@@ -84,6 +94,7 @@ export function build(ch, st, env) {
     if (open > 0.35) items.push({ k: 'ellipse', x: mx, y: my + ry * 0.5, rx: rx * 0.6, ry: ry * 0.4, fill: P('accent3'), feature: true });
   } else items.push({ k: 'stroke', pts: quadPts([mx - w * 0.09 * e.width, my - e.curve * H * 0.01], [mx, my + e.curve * H * 0.035], [mx + w * 0.09 * e.width, my - e.curve * H * 0.01 - e.skew * H * 0.015], 10), w: H * 0.016, fill: ink, feature: true });
   if (acc.has('mustache')) for (const k of [-1, 1]) items.push({ k: 'ellipse', x: mx + k * w * 0.05, y: my - H * 0.03, rx: w * 0.06, ry: H * 0.014, fill: hairC });
+  items.push(...worn.face);
   items.push(arm(dir));
   return { items, metrics: m };
 }

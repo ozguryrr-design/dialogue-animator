@@ -1,6 +1,7 @@
 // Prop geometry as shape specs with colour ROLES (resolved by the style palette). Origin = bottom centre,
 // up is negative y. Every prop returns { items, w, h } so the director can frame cutaway inserts on it.
 import { arcPts, circlePts, quadPts } from './shapes.mjs';
+import { PARTS } from './parts.mjs';
 
 const quad = (a, c, b) => quadPts(a, c, b, 8).slice(1);
 const arcRange = (x, y, r, a0, a1, n) => arcPts(x, y, r, a0, a1, n);
@@ -116,7 +117,7 @@ export const PROPS = {
   sofra: (o = {}) => {
     // a long low table under a dark cloth with a gold border; quiet enough to sit under close-ups
     // the cloth reaches past the floor line so the lap and feet of seated people stay hidden
-    const w = o.w || 1400, h = o.h || 200, items = [R(-w / 2, -h, w, h + (o.drop ?? 240), 'dark', 18)];
+    const w = o.w || 1400, h = o.h || 200, items = [R(-w / 2, -h, w, h + (o.drop ?? 240), o.fill || 'dark', 18)];
     items.push(R(-w / 2 + 24, -h + 34, w - 48, 14, 'accent1', 7, { noShadow: true }));
     for (let x = -w / 2 + 90; x < w / 2 - 60; x += 150) items.push(P([[x, -h + 84], [x + 22, -h + 108], [x, -h + 132], [x - 22, -h + 108]], 'accent3', { noShadow: true }));
     items.push(R(-w / 2 - 24, -h - 30, w + 48, 44, 'accent1', 20));
@@ -140,12 +141,19 @@ export const PROPS = {
   'hanging-lamp': () => ({ w: 200, h: 600, items: [S([[0, -600], [0, -130]], 8, 'dark'), P([[-100, 0], [100, 0], [50, -130], [-50, -130]], 'accent1')] }),
 };
 
+Object.assign(PROPS, PARTS);
+
 export const PROP_TYPES = Object.keys(PROPS);
 
 export function propGeometry(type, opts = {}) {
   const fn = PROPS[type];
   if (!fn) return { w: 100, h: 100, items: [] };
   return fn(opts);
+}
+
+/** Geometry of a prop as stored in the storyboard: from the catalogue, or drawn in the design (p.draw). */
+export function geometryOf(p, opts = p.opts || {}) {
+  return p.draw ? { w: p.w || 100, h: p.h || 100, items: p.draw } : propGeometry(p.type, opts);
 }
 
 export { circlePts };

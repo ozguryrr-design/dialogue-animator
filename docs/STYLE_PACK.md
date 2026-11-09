@@ -50,3 +50,6 @@ export default {
 Hooks must stay pure: Canvas2D only, no `Math.random`, no I/O. Shape specs and helpers are documented in `src/engine/shapes.mjs` and `src/engine/materials.mjs`.
 
 **Safety**: a `style.mjs` is code that runs on your machine. Read it before using a pack from someone you do not trust. Packs made only of `style.json` cannot run code.
+
+## Adapting ready-made sets
+Two optional keys let a pack adjust the catalogue without new art. `"sets"` overrides the surfaces of a set: `"sets": { "palace": { "wall": "wall", "stripe": "accent2" } }`. `"propOpts"` sets default options of a part: `"propOpts": { "blackboard": { "fill": "accent2" } }`. A print style with few inks uses these to keep large areas light.

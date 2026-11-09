@@ -15,7 +15,7 @@ const shell = (cmd) => spawnSync(cmd, { shell: true, encoding: 'utf8', env: { ..
 const tone = (sec, hz, amp = 0.4) => Float32Array.from({ length: Math.round(sec * 48000) }, (_, i) => amp * Math.sin((2 * Math.PI * hz * i) / 48000) * Math.min(1, i / 2000, (sec * 48000 - i) / 2000));
 const next = (dir) => JSON.parse(da('next', dir, '--json').stdout);
 
-/** The agent: runs what `da next` says, takes the defaults when asked, and has no other ideas. */
+/** The agent: runs what `da next` says, takes the defaults when asked or told to design, and has no other ideas. */
 function obey(dir) {
   const seen = [];
   let d;
@@ -23,8 +23,8 @@ function obey(dir) {
     d = next(dir);
     seen.push(d.step);
     if (d.state === 'done') break;
-    assert.ok(['run', 'ask'].includes(d.state), `the agent got stuck: ${JSON.stringify(d)}`);
-    const r = shell(d.state === 'ask' ? d.defaultsCommand : d.command);
+    assert.ok(['run', 'ask', 'design'].includes(d.state), `the agent got stuck: ${JSON.stringify(d)}`);
+    const r = shell(d.state === 'run' ? d.command : d.defaultsCommand);
     assert.equal(r.status, 0, `${d.command || d.defaultsCommand}\n${r.stdout}\n${r.stderr}`);
   }
   assert.equal(d.state, 'done', `never finished: ${seen.join(' > ')}`);
@@ -42,7 +42,7 @@ test('a literal agent loop finishes a folder with narration, dialogue, own voice
   writeWav(path.join(dir, 'music', 'benim-muzigim.wav'), tone(3, 110, 0.2));
 
   const { d, seen } = obey(dir);
-  assert.deepEqual(seen, ['parse', 'answers', 'cast', 'align', 'board', 'render', 'mix', 'qa', 'done']);
+  assert.deepEqual(seen, ['parse', 'answers', 'design', 'design', 'cast', 'align', 'board', 'render', 'mix', 'qa', 'done']);
   assert.ok(fs.existsSync(d.video));
   assert.notEqual(d.verdict, 'FAIL');
   assert.equal(d.estimatedTiming, false);
@@ -72,6 +72,15 @@ test('only a script, every default: a finished video, with the timing flagged as
   assert.notEqual(d.verdict, 'FAIL');
   assert.equal(d.estimatedTiming, true);
   assert.match(d.instructions.join('\n'), /ESTIMATED/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('no voice and no music: the silent video is not failed for its loudness', { skip: !findFfmpeg().ffmpeg && 'ffmpeg not available', timeout: 300000 }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'da-agent-'));
+  fs.writeFileSync(path.join(dir, 'dialogue.md'), 'Ali: Çay bitti mi?\nSu: Bitti.\n');
+  assert.equal(da('answer', dir, '--music', 'none', '--voice', 'none').status, 0);
+  const { d } = obey(dir);
+  assert.notEqual(d.verdict, 'FAIL');
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -167,7 +176,7 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const cliCommands = [...read('bin/da.mjs').matchAll(/^\s{2}(\w+): \(\) => import/gm)].map((m) => m[1]);
 
 test('every command the instructions mention really exists', () => {
-  for (const f of ['SKILL.md', 'AGENTS.md', 'README.md', ...fs.readdirSync(path.join(ROOT, 'docs')).map((x) => `docs/${x}`)]) {
+  for (const f of ['SKILL.md', 'AGENTS.md', 'README.md', ...fs.readdirSync(path.join(ROOT, 'docs')).filter((x) => x.endsWith('.md')).map((x) => `docs/${x}`)]) {
     for (const m of read(f).matchAll(/`da ([a-z]+)[ `]/g)) assert.ok(cliCommands.includes(m[1]), `${f}: da ${m[1]}`);
     for (const m of read(f).matchAll(/bin\/da\.mjs ([a-z]+)/g)) assert.ok(cliCommands.includes(m[1]), `${f}: bin/da.mjs ${m[1]}`);
   }

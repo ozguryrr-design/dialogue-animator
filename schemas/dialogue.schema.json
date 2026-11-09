@@ -59,23 +59,7 @@
           "label": {
             "type": "string"
           },
-          "setting": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              null,
-              "kitchen",
-              "cafe",
-              "living-room",
-              "office",
-              "street",
-              "park",
-              "studio",
-              "palace"
-            ]
-          },
+          "setting": { "type": ["string", "null"], "description": "A ready-made set; see `da design --catalog`." },
           "cast": {
             "type": "array",
             "items": {

@@ -11,6 +11,7 @@ Start here:
   next     <dir>          Says the ONE thing to do next (--json for agents). Repeat until DONE.
   init     <dir>          Prepare audio/, sfx/, music/, characters/ (keeps your script). --sample adds a sample script
   answer   <dir>          Store answers in project.json: --style --format --captions --music --voice, or --defaults
+  design   <dir>          Sets and costumes (design.json): draft it, --check, --accept. design --catalog lists every part
 
 Pipeline (in order; "make" runs all of them):
   doctor   [dir]          Check tools, fonts and (optionally) a project folder
@@ -46,6 +47,7 @@ Common options:
 const commands = {
   next: () => import('../src/next.mjs'),
   answer: () => import('../src/project/answer.mjs'),
+  design: () => import('../src/project/design.mjs'),
   doctor: () => import('../src/doctor.mjs'),
   init: () => import('../src/project/init.mjs'),
   parse: () => import('../src/project/parse.mjs'),

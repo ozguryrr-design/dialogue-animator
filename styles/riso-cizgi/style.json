@@ -54,14 +54,16 @@
   },
   "captions": {
     "font": { "family": "DA Fraunces", "weight": 600, "style": "italic" },
-    "word": { "size": 84, "fill": "ink", "y": 0.82, "pop": "none", "padX": 10, "padY": 6 },
-    "line": { "size": 60, "fill": "ink", "highlight": "accent2", "dim": 0.35, "y": 0.86, "maxWidth": 0.86, "maxLines": 2 },
+    "word": { "size": 84, "fill": "ink", "y": 0.82, "pop": "none", "padX": 22, "padY": 8, "bg": "paper", "radius": 10 },
+    "line": { "size": 60, "fill": "ink", "highlight": "accent2", "dim": 0.45, "y": 0.86, "maxWidth": 0.86, "maxLines": 2, "bg": "paper", "radius": 10 },
     "bubble": { "size": 50, "fill": "ink", "bg": "paper", "maxWidth": 0.6 }
   },
   "fonts": [
     { "family": "DA Fraunces", "file": "../../fonts/fraunces/Fraunces-Italic-VF.ttf" },
     { "family": "DA Noto Sans", "file": "../../fonts/notosans/NotoSans-VF.ttf", "fallback": true }
   ],
+  "sets": { "palace": { "wall": "wall", "stripe": "accent2" } },
+  "propOpts": { "sofra": { "fill": "light" }, "blackboard": { "fill": "accent2" } },
   "music": { "tempo": 84, "mood": "calm", "scale": "major", "lead": "bell" },
   "limits": { "minTextContrast": 4.5, "maxColors": 5, "minLinePx": 3 }
 }

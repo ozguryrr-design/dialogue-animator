@@ -165,6 +165,17 @@
         ]
       }
     },
+    "costume": {
+      "type": "object",
+      "description": "What the character wears: ids from `da design --catalog`, and/or shapes they drew (docs/DESIGN.md).",
+      "properties": {
+        "head": { "type": "string" },
+        "body": { "type": "string" },
+        "face": { "type": "string" },
+        "hidesHair": { "type": "boolean" },
+        "custom": { "type": "object" }
+      }
+    },
     "personality": {
       "type": "object",
       "properties": {

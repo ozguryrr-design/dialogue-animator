@@ -12,7 +12,10 @@ import { foldKey } from '../lib/text.mjs';
 import { nearest, toLab } from '../engine/color.mjs';
 import { BODIES } from '../engine/env.mjs';
 import { compose } from '../engine/settings.mjs';
-import { propGeometry } from '../engine/props.mjs';
+import { geometryOf } from '../engine/props.mjs';
+import { hatRise, HEADWEAR, headwearOf } from '../engine/wardrobe.mjs';
+import { designFor, propsFromDesign, makeFill, resolveDesign, OWN_COLORS } from '../project/design.mjs';
+import { SETTINGS } from '../engine/settings.mjs';
 import { REACTION, REACTION_FX } from '../engine/expressions.mjs';
 import { loadConfig, writeDecisions } from '../project/config.mjs';
 import { findProps, findSetting } from '../project/lexicon.mjs';
@@ -50,7 +53,7 @@ export function resolveCharacters(characters, style) {
         let d = Math.hypot(L[0] - want[0], L[1] - want[1], L[2] - want[2]) + 1.2 * Math.abs(L[0] - want[0]);
         const dh = Math.abs(((hue(L) - hue(want) + 540) % 360) - 180);
         if (chroma(L) > 20 && chroma(want) > 12 && dh > 70) d += 200; // never turn brown hair teal
-        if (usedH.has(U(p))) d += 40; // prefer a different hair colour per character, softly
+        if (usedH.has(U(p)) && !HEADWEAR[headwearOf(c)]?.hidesHair) d += 40; // prefer a different hair colour per character, softly (covered hair cannot tell them apart anyway)
         if (self.has(U(p))) d += 25;
         return { p, d };
       }).sort((a, b) => a.d - b.d);
@@ -82,7 +85,7 @@ export function frameFor(type, ctx, focus, extra = {}) {
     const hw = (id) => (seated ? halfShoulders(M[id]) : M[id].halfW);
     const xs = scene.cast.map((id) => [scene.positions[id] - hw(id), scene.positions[id] + hw(id)]);
     const minX = Math.min(...xs.map((v) => v[0])), maxX = Math.max(...xs.map((v) => v[1]));
-    const maxH = Math.max(...scene.cast.map((id) => M[id].H));
+    const maxH = Math.max(...scene.cast.map((id) => M[id].H + (M[id].hat || 0)));
     const w = maxX - minX + 140;
     const g = seated && portrait ? 0.66 : gf; // people at a table: the table edge sits a bit higher, less empty floor
     let h = Math.max(w / aspect, (maxH * 1.06) / (g - 0.05));
@@ -90,7 +93,7 @@ export function frameFor(type, ctx, focus, extra = {}) {
     return { x: (minX + maxX) / 2, y: -g * h + h / 2, h };
   }
   if (type === 'insert') {
-    const p = extra.prop, g = propGeometry(p.type, p.opts || {});
+    const p = extra.prop, g = geometryOf(p);
     const pw = g.w * (p.s || 1), ph = g.h * (p.s || 1);
     const h = Math.max(ph * 2.3, (pw * 2.0) / aspect, 420);
     return { x: p.x, y: p.y - ph / 2 - h * 0.04, h };
@@ -103,7 +106,7 @@ export function frameFor(type, ctx, focus, extra = {}) {
   if (oRange > 1 && type !== 'medium') return frameFor('medium', ctx, focus, extra);
   if (type === 'close' || type === 'reaction') {
     const h = m.headR * 2 * (portrait ? 2.75 : 1.9) * (type === 'reaction' ? 1.1 : 1);
-    const top = headTop - m.headR * 0.45 - h * 0.08; // room for hair and hats
+    const top = headTop - m.headR * 0.45 - h * 0.08 - Math.min(m.hat || 0, m.headR * 0.7); // room for hair and hats (a tall hat may be cropped; the face matters more)
     return { x: x0 + dir * h * aspect * 0.06, y: top + h / 2, h };
   }
   if (type === 'ots') {
@@ -119,16 +122,19 @@ export function frameFor(type, ctx, focus, extra = {}) {
       const maxOff = Math.max(0, fw * 0.5 - m.headR * 1.35);
       x = x0 + side * Math.min(clamp(edge - fw * 0.5 + fw * 0.16, 0, fw * 0.32), maxOff);
     }
-    const top = headTop - h * 0.07;
+    const top = headTop - h * 0.07 - Math.min(m.hat || 0, h * 0.2);
     return { x, y: top + h / 2, h };
   }
   // medium
   const h = m.H * (portrait ? 1.1 : 0.88) + oRange * 1.1;
-  const top = headTop - h * 0.07;
+  const top = headTop - h * 0.07 - Math.min(m.hat || 0, h * 0.2);
   return { x: x0 + dir * h * aspect * 0.05, y: top + h / 2, h };
 }
 
 // ---------------- shots ----------------
+// large pieces of the set: a cutaway to one of these would show nothing in particular
+const BACKDROP = ['counter', 'divan', 'sofra', 'rug', 'building', 'sofa', 'sun', 'cloud', 'tile-band', 'arcade', 'carpet', 'skyline', 'sea', 'dune', 'mountain', 'drape', 'curtain-rail', 'school-building', 'fence', 'stars', 'grass', 'moon'];
+
 function planScene(scene, lines, ctx) {
   const { lead, minShot, maxShot, reactions, cutaways, fps } = ctx;
   const cast = scene.cast, multi = cast.length > 1;
@@ -156,7 +162,7 @@ function planScene(scene, lines, ctx) {
     const L = lines[li], P = lines[li - 1], cur = shots[shots.length - 1];
     if (L.voiceOver) {
       // narration has nobody to cut to: show the whole stage, then look around every ~3 s
-      const details = scene.background.props.filter((p) => !['counter', 'divan', 'sofra', 'rug', 'building', 'sofa', 'sun', 'cloud'].includes(p.type) && p.visible !== false && p.layer !== 'front');
+      const details = scene.background.props.filter((p) => !BACKDROP.includes(p.type) && geometryOf(p).w < 1000 && p.visible !== false && p.layer !== 'front');
       const pool = cast.length ? cast.map((id) => ({ type: 'medium', focus: id, why: `narration: a look at ${id}` })) : details.map((p) => ({ type: 'insert', focus: null, prop: p.id, why: `narration: ${p.type}` }));
       if (!cur || cur.type !== 'wide') add(L.start - lead, 'wide', null, 'narration over the whole scene', { line: L.id });
       singles = 0;
@@ -440,7 +446,7 @@ function buildCaptions(mode, lines, aspect) {
 }
 
 // ---------------- main ----------------
-export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
+export function direct({ dialogue, characters, timing, envelope, style, cfg, design = null }) {
   const fps = cfg.fps, { width: W, height: H } = cfg.video, aspect = W / H;
   const duration = timing.duration, frames = Math.ceil(duration * fps);
   const lead = (style.camera.cutLeadFrames ?? 4) / fps;
@@ -448,6 +454,9 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
   const chars = resolveCharacters(characters, style);
   const body = BODIES[style.character?.body] || BODIES['paper-cut'];
   const M = Object.fromEntries(chars.map((c) => [c.id, body.metrics(c, style)]));
+  for (const c of chars) M[c.id].hat = body.anchors ? hatRise(c, body.anchors(M[c.id], c)) : 0;
+  const fillOf = makeFill(style), costumeFill = makeFill(style, OWN_COLORS);
+  for (const c of chars) if (c.costume?.custom) for (const list of Object.values(c.costume.custom)) for (const s of list) s.fill = costumeFill(s.fill);
   const order = dialogue.speakers.map((s) => s.id);
 
   // lines
@@ -482,10 +491,15 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
     const facing = Object.fromEntries(castIds.map((id) => [id, positions[id] <= 0 ? 1 : -1]));
     if (castIds.length === 1) facing[castIds[0]] = 1;
     const sBeats = (dialogue.beats || []).filter((b) => b.scene === s.id);
-    const setting = s.setting || findSetting([...sl.map((l) => l.text), ...sBeats.map((b) => b.text)].join(' ')) || 'living-room';
+    const sd = designFor(design, s, i);
+    const setting = (SETTINGS.includes(sd?.base) && sd.base) || (sd?.base === 'none' && 'none') || s.setting || findSetting([...sl.map((l) => l.text), ...sBeats.map((b) => b.text)].join(' ')) || 'living-room';
     const span = castIds.length ? [Math.min(...Object.values(positions)), Math.max(...Object.values(positions))] : [-280, 280];
-    const background = compose(setting, span);
-    background.props = background.props.map((p, k) => ({ id: `${s.id}-p${k + 1}`, ...p }));
+    const bare = sd?.place === 'exterior' ? { place: 'exterior', sky: 'sky', ground: 'ground', horizon: -60, props: [] } : { place: sd?.place || 'interior', wall: 'wall', floor: 'floor', props: [] };
+    const background = setting === 'none' ? bare : compose(setting, span);
+    Object.assign(background, style.sets?.[setting] || {});
+    for (const k of ['place', 'wall', 'floor', 'stripe', 'sky', 'ground', 'hills', 'horizon']) if (sd?.[k] !== undefined) background[k] = sd[k];
+    background.props = background.props.filter((p) => !sd?.remove?.includes(p.type)).map((p, k) => ({ id: `${s.id}-p${k + 1}`, ...p }));
+    background.props.push(...propsFromDesign(sd, s.id, fillOf));
     // make sure every prop a line mentions exists in the scene, so a cutaway can show it
     for (const l of sl) {
       l.props = [];
@@ -503,7 +517,7 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
     }
     const bFirst = sBeats[0], bLast = sBeats[sBeats.length - 1];
     const first = sl[0] || { start: bFirst?.start ?? 0 }, last = sl[sl.length - 1] || { end: bLast?.end ?? bFirst?.start ?? 0 };
-    return { id: s.id, label: s.label || '', setting, cast: castIds, positions, facing, background, posture, first, last, text: [s.label || '', ...sl.map((l) => l.text), ...sBeats.map((b) => b.text)].join(' ') };
+    return { id: s.id, label: s.label || '', setting, night: sd?.night, cast: castIds, positions, facing, background, posture, first, last, text: [s.label || '', ...sl.map((l) => l.text), ...sBeats.map((b) => b.text)].join(' ') };
   });
   scenes.forEach((s, i) => {
     s.start = i === 0 ? 0 : round((scenes[i - 1].last.end + s.first.start) / 2);
@@ -515,7 +529,8 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
   const beatEvents = [], noBlink = {};
   for (const s of scenes) {
     const folded = ' ' + s.text.split(/\s+/).map(foldKey).join(' ') + ' ';
-    if (/ (gece|iftar|aksam|night|evening|midnight|karanlik)/.test(folded)) s.background.tint = { color: 'dark', alpha: 0.3 };
+    if (s.night ?? / (gece|iftar|aksam|night|evening|midnight|karanlik)/.test(folded)) s.background.tint = { color: 'dark', alpha: 0.3 };
+    delete s.night;
     const sBeats = beats.filter((b) => b.scene === s.id);
     if (s.cast.length && Object.values(s.posture).includes('sit') && !s.background.props.some((p) => p.type === 'sofra')) {
       const minX = Math.min(...s.cast.map((id) => s.positions[id] - M[id].halfW)), maxX = Math.max(...s.cast.map((id) => s.positions[id] + M[id].halfW));
@@ -556,6 +571,7 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
       }
     }
   }
+  for (const s of scenes) for (const p of s.background.props) if (style.propOpts?.[p.type]) p.opts = { ...style.propOpts[p.type], ...(p.opts || {}) };
   const postureEvents = beatEvents.filter((e) => e.type === 'posture').sort((a, b) => a.t - b.t);
   const offAt = (scene, id, t) => {
     let v = scene.posture?.[id] === 'sit' ? 1 : 0;
@@ -664,13 +680,15 @@ export async function run(dir, cli = {}) {
   const timing = readJSON(b('timing.json'));
   const envelope = exists(b('envelope.json')) ? readJSON(b('envelope.json')) : null;
   const style = loadStyle(cfg.style, files.dir);
-  const sb = direct({ dialogue, characters, timing, envelope, style, cfg });
+  const design = resolveDesign(files, dialogue);
+  const sb = direct({ dialogue, characters, timing, envelope, style, cfg, design });
   const lint = lintStoryboard(sb, style, cfg);
   sb.lint = { warnings: lint.warnings, stats: lint.stats };
   assertValid(sb, 'storyboard');
   writeText(b('storyboard.json'), stringifyStoryboard(sb) + '\n');
   writeDecisions(files, decisions, [
     { key: 'timing source', value: timing.source + (timing.estimated ? ' (ESTIMATED)' : ''), source: 'auto' },
+    { key: 'sets and costumes', value: `${design.concept || 'no concept'}`, source: design.source },
     ...sb.scenes.map((s) => ({ key: `scene ${s.id}`, value: `${s.setting} (${s.label || 'no label'}), cast: ${s.cast.join(', ')}`, source: s.label ? 'dialogue' : 'auto' })),
     { key: 'shots', value: `${sb.shots.length} shots, ${lint.stats.cuts} cuts, avg ${lint.stats.avgShot.toFixed(2)} s`, source: 'auto' },
   ]);

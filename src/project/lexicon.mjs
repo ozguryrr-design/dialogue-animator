@@ -110,17 +110,31 @@ export const PROP_WORDS = {
 
 /** Setting words (scene headers or dialogue) -> stage setting id (engine/settings.mjs). */
 export const SETTING_WORDS = {
-  palace: ['saray', 'sarayda', 'palace', 'iftar', 'sofra', 'divan', 'hunkar', 'padisah', 'sultan', 'kosk', 'castle', 'throne'],
+  'palace-garden': ['saray bahcesi', 'hasbahce', 'palace garden'],
+  'throne-room': ['taht odasi', 'throne room', 'taht', 'throne', 'sato', 'castle'],
+  classroom: ['sinif', 'sinifta', 'classroom', 'okul', 'school', 'ogretmen', 'teacher', 'ders', 'lesson'],
+  schoolyard: ['okul bahcesi', 'teneffus', 'schoolyard', 'playground'],
+  bedroom: ['yatak odasi', 'bedroom', 'yatak', 'uyandi'],
+  hospital: ['hastane', 'hospital', 'doktor', 'doctor', 'ameliyat', 'revir', 'klinik', 'clinic'],
+  bazaar: ['pazar', 'carsi', 'bazaar', 'market', 'bedesten'],
+  forest: ['orman', 'forest', 'woods', 'koruluk'],
+  mountain: ['dag', 'dagda', 'zirve', 'mountain', 'yayla', 'kayalik'],
+  beach: ['sahil', 'plaj', 'deniz', 'beach', 'seaside', 'kumsal', 'liman', 'harbor', 'iskele'],
+  desert: ['col', 'colde', 'desert', 'sahra', 'vaha', 'oasis', 'kervan'],
+  village: ['koy', 'koyde', 'village', 'tarla', 'farm', 'ciftlik', 'kasaba'],
+  courtroom: ['mahkeme', 'courtroom', 'hakim', 'judge', 'savci', 'durusma'],
+  library: ['kutuphane', 'library'],
+  palace: ['saray', 'sarayda', 'palace', 'iftar', 'sofra', 'divan', 'hunkar', 'padisah', 'sultan', 'kosk', 'pasa', 'vezir', 'konak'],
   kitchen: ['mutfak', 'kitchen', 'yemek', 'cay', 'caydanlik', 'buzdolabi', 'fridge'],
   cafe: ['kafe', 'cafe', 'kahveci', 'coffee shop', 'kahve dukkani', 'restoran', 'restaurant'],
   'living-room': ['salon', 'oturma', 'living', 'ev', 'home', 'koltuk', 'sofa', 'kanepe'],
   office: ['ofis', 'office', 'is yeri', 'toplanti', 'meeting', 'patron', 'boss', 'masa'],
   street: ['sokak', 'cadde', 'sehir', 'street', 'city', 'otobus', 'bus', 'durak'],
-  park: ['park', 'bahce', 'garden', 'piknik', 'picnic', 'orman', 'forest', 'disari', 'outside'],
+  park: ['park', 'bahce', 'garden', 'piknik', 'picnic', 'disari', 'outside'],
   studio: ['studyo', 'studio', 'bos', 'empty', 'abstract'],
 };
 
-const foldWords = (text) => String(text).split(/[\s.,!?;:…"'()[\]{}«»“”‘’\-–—]+/).map(foldKey).filter(Boolean);
+export const foldWords = (text) => String(text).split(/[\s.,!?;:…"'()[\]{}«»“”‘’\-–—]+/).map(foldKey).filter(Boolean);
 
 export function tagToExpression(tag) {
   const k = foldKey(tag);

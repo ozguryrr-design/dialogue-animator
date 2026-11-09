@@ -51,6 +51,12 @@ A growing list of real failures met while building and using this skill. When yo
 40. **`@sfx name -6dB` made no difference when it was the only cue**: the effects track was normalized after the gains. The level is now set from the mix at 0 dB.
 41. **`da init` refused a folder that already had a script**, so someone with only a dialogue could not get the folders prepared. It now creates what is missing and leaves the script alone. It also no longer writes a sample script unless you pass `--sample`, because an agent could have turned that sample into your video.
 42. **"has no Name: text lines"**: every spoken line needs its speaker in front (`Ali: Merhaba.`). If the script does not say who speaks, the agent has to ask.
+43. **A sultan in the riso style came out bald with a bun, no kavuk and no kaftan**: turbans, crowns, beards and robes were only drawn by the paper-cut body, and a `robe` shape broke the riso one. Costumes now live in one wardrobe that every body draws.
+44. **Every video looked like the same room**: nothing designed the world of the story. `da next` now has a design step, with about 90 parts, a costume catalogue and free drawing in `design.json` (docs/DESIGN.md).
+45. **`design.json has problems`**: each line names the scene or character and usually the fix. `da design <dir> --check` shows them again. `da design --catalog` lists every valid id.
+46. **Captions were unreadable in riso over dark areas**: the ink text had nothing behind it. Riso captions now sit on a paper plate.
+47. **A video with no voice and no music failed QA on loudness**: silence has no level to reach, so the check now passes with a note.
+48. **A tall hat was cut off in the wide shot**: framing now counts the height of what a character wears.
 
 ## Repository / tooling
 23. **`spawnSync` fails with a negative `maxBuffer`** when the buffer size is computed as `1 << 31` (overflows to negative in JavaScript). Use `2 ** 32`.

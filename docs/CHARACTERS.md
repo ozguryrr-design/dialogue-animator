@@ -47,3 +47,8 @@ If the style pack sets `lockToPalette`, outfit colours snap to the pack's `chara
 - **Idle**: breathing (`motion.breath`, `breathHz`), bob or sway per style, listeners tilt their head toward the speaker, speakers nod on punctuated words.
 - **Blinks**: every `motion.blinkEvery` seconds (seeded), `blinkFrames` long, never on top of an expression change.
 - **Mouth**: openness per frame comes from the voice's amplitude envelope (per-line or whisper-aligned audio), or from word timings (one open/close per vowel) when there is no audio. Rounded vowels (o, u, ö, ü …) narrow the mouth.
+
+## Costumes
+Characters can wear what their story needs: `"costume": { "head": "kavuk", "body": "kaftan", "face": "beard" }`. The pieces are in `src/engine/wardrobe.mjs` and listed by `da design --catalog`. They are drawn relative to the body, so the same costume works in every style, and the agent can draw new ones with shapes (docs/DESIGN.md). A long garment such as a kaftan switches the body to the `robe` silhouette by itself. Costumes are usually set in `design.json`; `characters/<id>.json` can set them too, and a description in `characters/<id>.md` is read for words like "kaftanlı", "kavuklu", "üniformalı" or "lab coat".
+
+Priority per character: generated < `design.json` < image colours < description < `characters/<id>.json` (exact: the design is then ignored) < `project.json` overrides.

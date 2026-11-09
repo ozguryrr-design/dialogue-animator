@@ -11,6 +11,7 @@ my-video/
   music/             one music file you have the rights to
   words.json         word timings, if you already have them
   project.json       answers to the questions; `da answer` writes it (docs/QUESTIONS.md)
+  design.json        sets and costumes; the agent writes it (docs/DESIGN.md)
   styles/<id>/       optional project-local style pack
   build/             generated (safe to delete)
   out/               the finished video
@@ -35,7 +36,7 @@ Su: My plan: the cafe on the corner!
 - **One utterance per line**: `Name: text`. `**Name:** text` and `- Name: text` also work. Names may be written in any case (`ALİ`, `Ali`), and Turkish casing is handled. A line without `Name:` continues the previous line.
 - **`[tag]`** sets the expression: `neutral, happy, laugh, sad, angry, surprised, scared, thinking, worried, smug`. Turkish and English synonyms work (`[şaşkın]`, `[üzgün]`, `[kendinden emin]`, `[excited]` …; full list in `src/project/lexicon.mjs`). Without a tag the expression is guessed from words and punctuation.
 - **`(direction)` or `*direction*`** is not spoken. It can trigger a gesture (`waves / el sallar`, `points`, `shrugs / omuz silker`, `facepalm / yüzünü kapatır`, `cheers / sevinir`, `explains`, `thinks`, `nods`) or an expression (`sighs`, `laughs`, `shouts`, `whispers` …).
-- **Scenes**: `## Kitchen`, `@scene: park` or `[scene: office]`. Recognised sets: `kitchen, cafe, living-room, office, street, park, studio` (Turkish words too: mutfak, kafe, salon, ofis, sokak, park, bahçe …). Unknown words fall back to the dialogue's content, then to `living-room`.
+- **Scenes**: `## Kitchen`, `@scene: park` or `[scene: office]`. Recognised sets include `kitchen, cafe, living-room, office, street, park, palace, throne-room, classroom, schoolyard, hospital, bazaar, forest, mountain, beach, desert, village` (Turkish words too: mutfak, kafe, salon, ofis, sokak, saray, sınıf, hastane, pazar, orman, dağ, sahil, köy …; all of them: `da design --catalog`). Unknown words fall back to the dialogue's content, then to `living-room`.
 - HTML comments `<!-- -->`, `//` lines and `>` quotes are ignored.
 - Any language works. `da doctor` checks that the style's fonts contain every character you used.
 

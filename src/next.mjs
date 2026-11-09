@@ -2,6 +2,7 @@
 // This is what makes the skill independent of the model: the decisions live here, in deterministic code.
 // An agent only has to run this, do what it prints, and repeat until it prints DONE.
 // States: run (execute `command`) · ask (ask the user, then run `answerCommand`, or `defaultsCommand` if you cannot ask)
+//         design (be the art director: improve design.json, or run `defaultsCommand` if you cannot)
 //         edit (a file must be written, see `instructions`) · fix (QA failed) · blocked (needs the user) · done
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,6 +11,7 @@ import { runChecks } from './doctor.mjs';
 import { scanProject, outputPath, loadConfig } from './project/config.mjs';
 import { listStyles, resolveStyleDir } from './style/load.mjs';
 import { resolveSfx } from './audio/sfx.mjs';
+import { designState } from './project/design.mjs';
 import { foldKey } from './lib/text.mjs';
 
 const slash = (p) => p.split(path.sep).join('/');
@@ -28,7 +30,7 @@ export const FORMAT_HELP = [
   '0–5 sn — a stage direction          optional: a timed beat; the lines under it go into that window',
 ];
 
-const STEPS = ['tools', 'dialogue', 'parse', 'answers', 'cast', 'align', 'board', 'render', 'mix', 'qa'];
+const STEPS = ['tools', 'dialogue', 'parse', 'answers', 'design', 'cast', 'align', 'board', 'render', 'mix', 'qa'];
 
 function questions(files, dialogue) {
   const styles = listStyles([path.join(files.dir, 'styles')]).map((s) => s.id);
@@ -101,12 +103,33 @@ export async function decide(dirArg) {
   const lost = (dialogue.sfx || []).filter((s) => !resolveSfx(s.name, files.sfx));
   if (lost.length) return { state: 'edit', ...n('board'), why: `sound effect not found: ${lost.map((s) => s.name).join(', ')}`, instructions: [`Put a file with that name in ${slash(path.join(dir, files.sfxDir))}/ (for example ${lost[0].name}.wav), or remove the @sfx line from dialogue.md. Built-in names: door, bolt, clink, knock, whoosh.`] };
 
+  // the look of the video: a draft from the script, then an art director's pass
+  const ds = designState(files, dialogue), guide = `${slash(ROOT)}/docs/DESIGN.md`;
+  if (!ds.exists) return run('design', da('design'), 'there is no design for the sets and costumes yet; this writes a first draft from the script');
+  if (ds.errors.length) return { state: 'edit', ...n('design'), why: 'design.json has problems', instructions: [...ds.errors.slice(0, 15), `Fix these in ${slash(ds.file)}. The format is in ${guide}; ready-made ids: ${da('design').replace(/ "[^"]*"$/, '')} --catalog`] };
+  if (ds.status !== 'final') {
+    return {
+      state: 'design', ...n('design'), why: 'the sets and costumes are only an automatic draft made from keywords',
+      instructions: [
+        `You are the art director now. Open ${slash(ds.file)} and make it fit THIS story, even if the user described nothing.`,
+        'Read the script. For each scene decide the period, the place and the time of day. For each character decide their age, status and job, and what such a person would wear.',
+        'What the user said about the look always wins over your own ideas.',
+        `See what is ready-made: ${da('design').replace(/ "[^"]*"$/, '')} --catalog. Format and worked examples: ${guide}`,
+        'Give every scene at least 6 parts that belong to that place, including something above head height (y between -1000 and -1500). Give every character a costume.',
+        'If the story needs something that is not in the catalogue, draw it yourself with shapes ("draw" for a set piece, "costume.custom" for clothes).',
+        'When it is done, set "status": "final" in design.json.',
+      ],
+      defaultsCommand: `${da('design')} --accept`,
+    };
+  }
+  const designHints = ds.warnings.map((w) => `design: ${w}`);
+
   // pipeline, each step only when its output is missing or older than what it depends on
-  if (stale(b('characters.json'), [b('dialogue.json'), pj, ...files.characters])) return run('cast', da('cast'), 'the characters have not been built yet, or their sources changed');
+  if (stale(b('characters.json'), [b('dialogue.json'), pj, ds.file, ...files.characters])) return run('cast', da('cast'), 'the characters have not been built yet, or their sources changed', { hints: designHints });
   if (stale(b('timing.json'), [b('dialogue.json'), pj, files.words, ...files.audio])) return run('align', da('align'), 'the voice has not been timed yet, or it changed');
   let styleJson = null;
   try { styleJson = path.join(resolveStyleDir(cfg.style, files.dir), 'style.json'); } catch (e) { return { state: 'edit', ...n('board'), why: e.message, instructions: ['Set an existing style in project.json ("style").'] }; }
-  if (stale(b('storyboard.json'), [b('dialogue.json'), b('characters.json'), b('timing.json'), pj, styleJson])) return run('board', da('board'), 'the scenes have not been directed yet, or an input changed');
+  if (stale(b('storyboard.json'), [b('dialogue.json'), b('characters.json'), b('timing.json'), pj, ds.file, styleJson])) return run('board', da('board'), 'the scenes have not been directed yet, or an input changed');
   if (stale(b('video.mp4'), [b('storyboard.json')])) return run('render', da('render'), 'the picture has not been rendered yet, or the storyboard changed', { hints: ['Optional, if you can see images: run `stills` first and look at build/stills/sheet.png.'] });
   const sb = readJSON(b('storyboard.json'));
   const out = outputPath(cfg, files, sb.meta.title);
@@ -142,7 +165,7 @@ function print(d) {
   if (d.questions) d.questions.forEach((x, i) => console.log(`Q${i + 1}:   ${x.question} [${x.options.join(' | ')}] default: ${x.default}`));
   for (const l of d.instructions || []) console.log(`DO:   ${l}`);
   if (d.answerCommand) console.log(`THEN RUN:        ${d.answerCommand}`);
-  if (d.defaultsCommand) console.log(`CANNOT ASK? RUN: ${d.defaultsCommand}`);
+  if (d.defaultsCommand) console.log(`${d.state === 'design' ? 'CANNOT DESIGN? RUN:' : 'CANNOT ASK? RUN:'} ${d.defaultsCommand}`);
   for (const l of d.hints || []) console.log(`HINT: ${l}`);
   for (const l of d.warnings || []) console.log(`WARN: ${l}`);
   if (d.video) console.log(`VIDEO: ${d.video}`);

@@ -13,6 +13,8 @@ import { deltaE, rgbToHex } from '../engine/color.mjs';
 import { loadConfig, IMAGE_EXT } from './config.mjs';
 import { COLOR_WORDS, COLOR_HEX, SKIN_WORDS, normalizeColor } from './colors.mjs';
 import { run as runParse } from './parse.mjs';
+import { resolveDesign, expandShapes, ROLE_COLORS, OWN_COLORS } from './design.mjs';
+import { GARMENTS, HEADWEAR, FACEWEAR } from '../engine/wardrobe.mjs';
 
 export const GENERIC_SKIN = ['#F6D3B8', '#EBB48E', '#C98D62', '#94603E', '#5F3D2A'];
 const AUTO_BODY = ['#E3A72F', '#2F7F7A', '#D9653B', '#3A78C3', '#7E57C2', '#4F9A5A', '#E88FAE', '#22304A'];
@@ -28,6 +30,15 @@ const NOUNS = {
   legs: ['pantolon', 'pantolonlu', 'etek', 'etekli', 'sort', 'sortlu', 'jean', 'kot', 'pants', 'trousers', 'skirt', 'shorts', 'jeans', 'legs', 'bacak', 'tayt'],
   skin: ['ten', 'tenli', 'cilt', 'ciltli', 'skin', 'skinned'],
   accent: ['atki', 'atkili', 'sapka', 'sapkali', 'bere', 'bereli', 'kravat', 'kravatli', 'papyon', 'papyonlu', 'scarf', 'hat', 'beanie', 'tie', 'bowtie', 'kulaklik', 'headphones'],
+};
+
+const COSTUME_WORDS = {
+  head: {
+    'sultan-kavuk': ['sorguc'], kavuk: ['kavuk'], turban: ['sarik', 'turban'], bork: ['bork'], fez: ['fes', 'fez'], crown: ['tac', 'crown'], tiara: ['tiara', 'diadem'], headscarf: ['basortu', 'tesettur', 'headscarf', 'hijab'],
+    'graduation-cap': ['kep', 'mezuniyet'], beret: ['beret'], 'top-hat': ['silindir'], 'straw-hat': ['hasir', 'straw'], 'chef-hat': ['sef', 'chef'], 'hard-hat': ['baret'], 'knight-helmet': ['migfer', 'helmet'], 'pirate-hat': ['korsan', 'pirate'], 'witch-hat': ['cadi', 'witch', 'wizard', 'buyucu'], 'cowboy-hat': ['kovboy', 'cowboy'], wreath: ['defne', 'wreath'], bandana: ['bandana'],
+  },
+  body: { kaftan: ['kaftan'], robe: ['cuppe', 'cubbe', 'robe', 'entari'], cloak: ['pelerin', 'cloak', 'cape'], dress: ['elbise', 'gown', 'dress'], uniform: ['uniforma', 'uniform'], suit: ['takim', 'suit'], 'lab-coat': ['labcoat', 'doktor'], apron: ['onluk', 'apron'], armor: ['zirh', 'armor', 'armour'], vest: ['yelek', 'vest'], overalls: ['tulum', 'overalls'] },
+  face: { 'long-beard': ['uzunsakal'], 'curled-mustache': ['burmabiyik'], 'eye-patch': ['gozbandi', 'eyepatch'] },
 };
 
 const has = (f, stems) => f.some((w) => stems.some((s) => w === s || (s.length >= 4 && w.startsWith(s))));
@@ -118,6 +129,11 @@ export function parseDescription(text) {
     headphones: ['kulaklik', 'headphone', 'headset'], flower: ['cicek', 'flower', 'tokasi'], blush: ['allik', 'blush', 'pembeyanak', 'kizarik'],
   };
   for (const [acc, stems] of Object.entries(ACC)) if (has(f, stems) && !(acc === 'tie' && has(f, ['bowtie', 'papyon']))) out.accessories.push(acc);
+
+  // costume words ("kavuklu", "kaftan giymiş", "lab coat")
+  const costume = {};
+  for (const [slot, table] of Object.entries(COSTUME_WORDS)) for (const [id, stems] of Object.entries(table)) if (!costume[slot] && has(f, stems)) costume[slot] = id;
+  if (Object.keys(costume).length) out.costume = costume;
 
   // personality
   if (has(f, ['enerjik', 'hareketli', 'neseli', 'energetic', 'hyper', 'cheerful', 'bubbly', 'heyecanli', 'cosk'])) out.personality.energy = 0.85;
@@ -210,6 +226,16 @@ function deepMerge(a, b) {
   return o;
 }
 
+/** The body follows the garment: a long one needs the robe silhouette, a short one a shape it can fit on. */
+function fitCostume(ch) {
+  const c = ch.costume;
+  if (!c) return;
+  for (const [slot, table] of [['head', HEADWEAR], ['body', GARMENTS], ['face', FACEWEAR]]) if (c[slot] && !table[c[slot]]) throw new Error(`Character ${ch.name}: there is no ${slot} piece "${c[slot]}". See: da design --catalog`);
+  const g = GARMENTS[c.body];
+  if (g) { ch.body = { ...(ch.body || {}) }; if (g.long) ch.body.shape = 'robe'; else if (['round', 'robe'].includes(ch.body.shape)) ch.body.shape = 'trapezoid'; }
+  if (c.custom) c.custom = Object.fromEntries(Object.entries(c.custom).map(([k, list]) => [k, expandShapes(list)]));
+}
+
 function findFileFor(speaker, files) {
   const keys = [foldKey(speaker.id), foldKey(speaker.name)];
   return files.filter((f) => keys.includes(foldKey(path.basename(f, path.extname(f)))));
@@ -220,6 +246,7 @@ export async function run(dir, cli = {}) {
   const dPath = path.join(files.build, 'dialogue.json');
   const dialogue = exists(dPath) ? readJSON(dPath) : (await runParse(dir, cli)).dialogue;
   const schema = loadSchema('character');
+  const design = resolveDesign(files, dialogue);
   const notes = [];
   const used = new Set();
   const characters = [];
@@ -231,11 +258,19 @@ export async function run(dir, cli = {}) {
     const txt = matches.find((f) => /\.(md|txt)$/i.test(f));
     const img = matches.find((f) => IMAGE_EXT.includes(path.extname(f).toLowerCase()));
     matches.forEach((m) => used.add(m));
+    const planned = design.characters?.[sp.id];
     if (json) {
       const j = readJSON(json);
       ch = deepMerge(ch, j); ch.source = 'json';
       notes.push(`${sp.name}: ${rel(json, files.dir)} (exact)`);
     } else {
+      if (planned) {
+        const { role, notes: _n, ...look } = planned;
+        ch = deepMerge(ch, look);
+        if (planned.costume && !planned.accessories) ch.accessories = []; // no random headphones under a kavuk
+        ch.source = 'agent';
+        if (planned.costume) notes.push(`${sp.name}: ${role ? role + ', ' : ''}${[planned.costume.head, planned.costume.body, planned.costume.face, planned.costume.custom && 'drawn pieces'].filter(Boolean).join(', ')} (${design.source})`);
+      }
       if (img) {
         const cols = await colorsFromImage(img);
         ch = deepMerge(ch, imagePartial(cols)); ch.source = 'image';
@@ -252,6 +287,7 @@ export async function run(dir, cli = {}) {
     if (ov) { ch = deepMerge(ch, ov); notes.push(`${sp.name}: project.json overrides applied`); }
     ch.id = sp.id;
     ch.name = ch.name || sp.name;
+    fitCostume(ch);
     for (const k of Object.keys(ch.colors || {})) {
       const n = normalizeColor(ch.colors[k]);
       if (!n) { notes.push(`${sp.name}: colour "${ch.colors[k]}" for ${k} not understood — using the generated one`); ch.colors[k] = autoCharacter(sp, i).colors[k]; }

@@ -3,6 +3,7 @@
 import { darken, mix } from '../color.mjs';
 import { armFromAngles, solveIK } from '../poses.mjs';
 import { arcPts, quadPts, circlePts } from '../shapes.mjs';
+import { wear } from '../wardrobe.mjs';
 
 export const BASE_HEIGHT = 900;
 
@@ -139,7 +140,6 @@ function accessoryShapes(ch, m, st, cols) {
   if (acc.has('blush')) for (const k of [-1, 1]) head.push({ k: 'ellipse', x: fx + k * r * 0.52, y: cy + r * 0.3, rx: r * 0.13, ry: r * 0.07, fill: mix('#E88FAE', cols.skin, 0.35), feature: true });
   if (acc.has('freckles')) for (const k of [-1, 1]) for (let i = 0; i < 3; i++) head.push({ k: 'circle', x: fx + k * r * (0.42 + i * 0.09), y: cy + r * (0.26 + (i % 2) * 0.07), r: r * 0.022, fill: darken(cols.skin, 0.3), feature: true });
   if (acc.has('mustache')) for (const k of [-1, 1]) head.push({ k: 'ellipse', x: fx + k * r * 0.1, y: cy + r * 0.36, rx: r * 0.13, ry: r * 0.055, rot: k * 0.25, fill: cols.hair });
-  if (acc.has('beard')) head.push({ k: 'poly', pts: [...arcPts(fx * 0.5, cy + r * 0.2, r * 0.82, 0.1, Math.PI - 0.1, 14), ...arcPts(fx * 0.5, cy + r * 0.32, r * 0.5, Math.PI - 0.3, 0.3, 10)], fill: cols.hair });
   if (acc.has('earrings')) for (const k of [-1, 1]) head.push({ k: 'circle', x: k * r * 0.98, y: cy + r * 0.32, r: r * 0.07, fill: cols.accent });
   if (acc.has('glasses')) {
     const ey = cy + r * 0.04, gr = r * 0.2, w = r * 0.055;
@@ -154,18 +154,6 @@ function accessoryShapes(ch, m, st, cols) {
     top.push({ k: 'rrect', x: -r * 1.25, y: cy - r * 0.82, w: r * 2.5, h: r * 0.16, r: r * 0.06, fill: cols.accent });
     top.push({ k: 'rrect', x: -r * 0.78, y: cy - r * 1.5, w: r * 1.56, h: r * 0.74, r: r * 0.2, fill: cols.accent });
     top.push({ k: 'rrect', x: -r * 0.78, y: cy - r * 0.98, w: r * 1.56, h: r * 0.14, r: 0, fill: cols.ink, noShadow: true });
-  }
-  if (acc.has('turban')) {
-    // a wrapped dome sitting above the brow line, with wrap bands and a small top cap
-    const base = cy - r * 0.52, light = 'light', band = mix(cols.ink, '#F3EBDD', 0.82);
-    top.push({ k: 'poly', pts: [...arcPts(0, base, r * 1.06, Math.PI, Math.PI * 2, 20).map(([x, y]) => [x, base + (y - base) * 0.78])], fill: light });
-    for (const [k, a0, a1] of [[0.22, 1.1, 1.7], [0.5, 1.2, 1.84], [0.78, 1.32, 1.93]]) top.push({ k: 'stroke', pts: arcPts(0, base + r * 0.12, r * (1.0 - k * 0.32), Math.PI * a0, Math.PI * a1, 10).map(([x, y]) => [x, base + (y - base) * 0.82]), w: r * 0.06, fill: band, noShadow: true });
-    top.push({ k: 'rrect', x: -r * 1.06, y: base - r * 0.06, w: r * 2.12, h: r * 0.2, r: r * 0.1, fill: light });
-    top.push({ k: 'ellipse', x: 0, y: base - r * 0.8, rx: r * 0.2, ry: r * 0.1, fill: cols.accent });
-  }
-  if (acc.has('crown')) {
-    const base = cy - r * 0.7;
-    top.push({ k: 'poly', pts: [[-r * 0.75, base], [-r * 0.8, base - r * 0.55], [-r * 0.4, base - r * 0.25], [0, base - r * 0.7], [r * 0.4, base - r * 0.25], [r * 0.8, base - r * 0.55], [r * 0.75, base]], fill: 'accent1' });
   }
   if (acc.has('beanie')) {
     top.push({ k: 'poly', pts: [...arcPts(0, cy - r * 0.3, r * 1.04, Math.PI * 1.02, Math.PI * 1.98, 18)], fill: cols.accent });
@@ -189,6 +177,12 @@ function accessoryShapes(ch, m, st, cols) {
   }
   if (acc.has('tie')) neck.push({ k: 'poly', pts: [[-r * 0.1, tt + r * 0.02], [r * 0.1, tt + r * 0.02], [r * 0.16, tt + r * 1.1], [0, tt + r * 1.3], [-r * 0.16, tt + r * 1.1]], fill: cols.accent });
   return { head, neck, top };
+}
+
+/** Where a costume attaches on this body (src/engine/wardrobe.mjs). */
+export function anchors(m, ch) {
+  const long = ch.body?.shape === 'robe';
+  return { H: m.H, r: m.headR, cy: m.headCY, rim: m.headCY - m.headR * 0.52, fy: m.headCY, fx: 0.13, shoulderY: m.torsoTop, shoulderW: m.topW, hemY: long ? -m.H * 0.035 : -m.legH + 22, hemW: m.botW };
 }
 
 /**
@@ -217,12 +211,12 @@ export function build(ch, st, env) {
   const upper = [];
   const hip = -m.legH + 22;
   const headGroup = [];
-  const covered = (ch.accessories || []).includes('turban');
-  const hair = hairShapes(m, covered ? 'none' : ch.hair?.style || 'short', cols.hair, dir);
+  const worn = wear(ch, st, anchors(m, ch), env);
+  const hair = hairShapes(m, worn.hidesHair ? 'none' : ch.hair?.style || 'short', cols.hair, dir);
   const acc = accessoryShapes(ch, m, st, cols);
   // order: back hair, head, front hair, then the face on top (brows must never hide under a fringe)
-  headGroup.push(...hair.back.map((s) => ({ ...s })), headShape(m, ch.head?.shape || 'round', cols.skin), ...hair.front);
-  headGroup.push(...faceShapes(ch, m, st, cols.ink, cols.skin), ...acc.head, ...acc.top);
+  headGroup.push(...worn.back, ...hair.back.map((s) => ({ ...s })), headShape(m, ch.head?.shape || 'round', cols.skin), ...hair.front);
+  headGroup.push(...faceShapes(ch, m, st, cols.ink, cols.skin), ...worn.face, ...acc.head, ...acc.top, ...worn.hat);
 
   const arm = (k) => {
     const side = k === near ? st.pose.near : st.pose.far;
@@ -243,7 +237,7 @@ export function build(ch, st, env) {
   };
   upper.push(...arm(far));
   upper.push({ k: 'poly', pts: torsoPts(m, ch.body?.shape || 'trapezoid'), fill: cols.body });
-  upper.push(...acc.neck);
+  upper.push(...worn.over, ...acc.neck);
   const neckY = m.torsoTop + m.headR * 0.1;
   upper.push({ k: 'group', tf: { x: 0, y: neckY, rot: st.headTilt + st.pose.head * dir }, items: headGroup.map((s) => shift(s, 0, -neckY)) });
   upper.push(...arm(near));

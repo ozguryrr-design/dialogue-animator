@@ -1,6 +1,6 @@
 // Scene backgrounds from storyboard data (scene.background) + props, painted with the style material.
 import { drawShapes } from './materials.mjs';
-import { propGeometry } from './props.mjs';
+import { geometryOf } from './props.mjs';
 import { visibleRect } from './camera.mjs';
 
 function gradientOr(ctx, env, role, y0, y1) {
@@ -46,7 +46,7 @@ export function propState(env, p, t) {
 export function propItems(p, env = null, t = 0) {
   const { opts, visible } = propState(env, p, t);
   if (!visible) return null;
-  const g = propGeometry(p.type, opts);
+  const g = geometryOf(p, opts);
   return { k: 'group', tf: { x: p.x, y: p.y, sx: (p.flip ? -1 : 1) * (p.s || 1), sy: p.s || 1 }, items: g.items, id: p.id };
 }
 

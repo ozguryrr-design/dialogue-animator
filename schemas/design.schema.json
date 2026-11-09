@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dialogue-animator/schemas/design.schema.json",
+  "title": "Art direction",
+  "description": "design.json in the project folder: what each scene looks like and what each character wears. Guide: docs/DESIGN.md. Ids of everything ready-made: `da design --catalog`.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "status": { "enum": ["draft", "final"], "description": "A draft stops `da next` until someone has designed it or accepted it." },
+    "concept": { "type": "string", "description": "One sentence: period, place, mood." },
+    "scenes": { "type": "array", "items": { "$ref": "#/$defs/scene" } },
+    "characters": { "type": "object", "additionalProperties": { "$ref": "#/$defs/character" } }
+  },
+  "$defs": {
+    "scene": {
+      "type": "object",
+      "properties": {
+        "scene": { "type": "string", "description": "s1, s2 ... (or use the order of the list)" },
+        "label": { "type": "string" },
+        "base": { "type": "string", "description": "A ready-made set to start from, or \"none\" for a bare stage." },
+        "place": { "enum": ["interior", "exterior", "studio"] },
+        "wall": { "type": "string" }, "floor": { "type": "string" }, "stripe": { "type": ["string", "null"] },
+        "sky": { "type": "string" }, "ground": { "type": "string" }, "hills": { "type": ["string", "null"] }, "horizon": { "type": "number" },
+        "night": { "type": "boolean" },
+        "remove": { "type": "array", "items": { "type": "string" }, "description": "Part types of the base to leave out." },
+        "parts": { "type": "array", "items": { "$ref": "#/$defs/part" } },
+        "notes": { "type": "string" }
+      }
+    },
+    "part": {
+      "type": "object",
+      "properties": {
+        "use": { "type": "string", "description": "A catalogue part." },
+        "name": { "type": "string", "description": "What a drawn part is." },
+        "draw": { "type": "array", "items": { "$ref": "#/$defs/shape" }, "description": "Draw it yourself. Origin = bottom centre of the part, up is negative y, characters are 900 tall." },
+        "x": { "type": "number" }, "y": { "type": "number" }, "s": { "type": "number", "exclusiveMinimum": 0 },
+        "flip": { "type": "boolean" },
+        "layer": { "enum": ["back", "floor", "front"] },
+        "opts": { "type": "object" }
+      }
+    },
+    "character": {
+      "type": "object",
+      "properties": {
+        "role": { "type": "string" }, "notes": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" },
+        "costume": { "$ref": "#/$defs/costume" },
+        "colors": { "type": "object" }, "hair": { "type": "object" }, "body": { "type": "object" }, "head": { "type": "object" },
+        "eyes": { "type": "object" }, "brows": { "type": "object" }, "nose": { "type": "string" }, "accessories": { "type": "array", "items": { "type": "string" } }, "personality": { "type": "object" }
+      }
+    },
+    "costume": {
+      "type": "object",
+      "properties": {
+        "head": { "type": "string" }, "body": { "type": "string" }, "face": { "type": "string" },
+        "hidesHair": { "type": "boolean" },
+        "custom": {
+          "type": "object",
+          "description": "Draw your own. hat/back: origin = middle of the brim, 1 = head radius. face: origin = head centre. body: x -1..1 across the torso, y 0 at the shoulders .. 1 at the hem.",
+          "properties": {
+            "hat": { "type": "array", "items": { "$ref": "#/$defs/shape" } },
+            "back": { "type": "array", "items": { "$ref": "#/$defs/shape" } },
+            "face": { "type": "array", "items": { "$ref": "#/$defs/shape" } },
+            "body": { "type": "array", "items": { "$ref": "#/$defs/shape" } }
+          }
+        }
+      }
+    },
+    "shape": {
+      "type": "object",
+      "required": ["k"],
+      "properties": {
+        "k": { "enum": ["rect", "rrect", "circle", "ellipse", "poly", "polygon", "line", "stroke", "ring", "path", "repeat", "mirror"] },
+        "x": { "type": "number" }, "y": { "type": "number" }, "w": { "type": "number" }, "h": { "type": "number" }, "r": { "type": "number" },
+        "rx": { "type": "number" }, "ry": { "type": "number" }, "rot": { "type": "number" },
+        "pts": { "type": "array", "minItems": 2, "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } } },
+        "cmds": { "type": "array", "items": { "type": "array" } },
+        "fill": { "type": "string" }, "alpha": { "type": "number" }, "noShadow": { "type": "boolean" }, "closed": { "type": "boolean" },
+        "n": { "type": "integer", "minimum": 1, "maximum": 200 }, "dx": { "type": "number" }, "dy": { "type": "number" },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/shape" } }
+      }
+    }
+  }
+}
