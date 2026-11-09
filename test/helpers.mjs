@@ -1,7 +1,7 @@
 // Build a storyboard in memory (no audio, no files) for fast unit tests.
 import { parseDialogueText } from '../src/project/parse.mjs';
 import { autoCharacter } from '../src/project/cast.mjs';
-import { estimateDuration, estimateWords } from '../src/audio/align.mjs';
+import { estimateDuration, estimateWords, placeInBeats } from '../src/audio/align.mjs';
 import { direct } from '../src/director/storyboard.mjs';
 import { DEFAULTS, FORMATS } from '../src/project/config.mjs';
 import { loadStyle } from '../src/style/load.mjs';
@@ -17,6 +17,10 @@ Ada: (cheers) You are the best!
 `;
 
 export function timingFor(dialogue, rate = 4.6) {
+  if (dialogue.beats?.length) {
+    const r = placeInBeats(dialogue.lines, dialogue.beats, {}, { leadIn: 0.4, tail: 1, gap: 0.25, speechRate: rate });
+    return { source: 'estimate + beats', estimated: true, duration: r.end, voice: null, lines: r.timed };
+  }
   let t = 0.4;
   const lines = dialogue.lines.map((l, i) => {
     if (i) t += 0.4;
@@ -31,7 +35,7 @@ export function timingFor(dialogue, rate = 4.6) {
 export function makeStoryboard({ text = SAMPLE, style = 'kesik-kagit', format = '9:16', captions = 'word' } = {}) {
   const dialogue = parseDialogueText(text);
   dialogue.title = dialogue.title || 'Test';
-  const characters = dialogue.speakers.map((s, i) => autoCharacter(s, i, dialogue.lines));
+  const characters = dialogue.speakers.filter((s) => !s.narrator).map((s, i) => autoCharacter(s, i, dialogue.lines));
   const timing = timingFor(dialogue);
   const st = loadStyle(style);
   const [w, h] = FORMATS[format];

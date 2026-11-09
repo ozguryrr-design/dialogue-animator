@@ -4,3 +4,5 @@ examples/*/out/
 *.log
 .DS_Store
 Thumbs.db
+Deneme/
+deneme/

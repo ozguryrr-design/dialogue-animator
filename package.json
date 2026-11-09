@@ -1,8 +1,12 @@
 {
   "name": "dialogue-animator",
   "version": "0.1.0",
-  "description": "Turn a folder with a dialogue (and optional voice, characters, music) into a 2D character animation video. Model- and agent-agnostic skill.",
+  "description": "Turn a folder with a dialogue (and optional narration, voice, sound effects, characters, music) into a 2D character animation video. Model- and agent-agnostic skill.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ozguryrr-design/dialogue-animator.git"
+  },
   "type": "module",
   "bin": {
     "da": "bin/da.mjs"

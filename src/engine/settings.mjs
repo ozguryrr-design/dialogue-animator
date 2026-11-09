@@ -2,7 +2,7 @@
 // in storyboard.json (scene.background), so a renderer needs nothing but the storyboard to draw it.
 // Coordinates are stage units: ground at y = 0, characters 900 units tall, cast centred on x = 0.
 
-export const SETTINGS = ['kitchen', 'cafe', 'living-room', 'office', 'street', 'park', 'studio'];
+export const SETTINGS = ['kitchen', 'cafe', 'living-room', 'office', 'street', 'park', 'studio', 'palace'];
 
 const p = (type, x, y = 0, s = 1, extra = {}) => ({ type, x, y, s, ...extra });
 
@@ -59,6 +59,16 @@ export function compose(setting, span = [-280, 280]) {
         props: [
           p('sun', b + 160, -1380, 1), p('cloud', a - 150, -1300, 0.8), p('tree', L - 220, -40, 1.05), p('tree', Rr + 330, -40, 0.9),
           p('bench', mid, -30, 0.9), p('bush', Rr + 80, 0, 0.9),
+        ],
+      };
+    case 'palace':
+      return {
+        place: 'interior', wall: 'accent2', floor: 'floor', stripe: 'accent1',
+        props: [
+          p('arch', a - 300, -560, 1, { opts: { moon: true } }), p('arch', mid, -600, 0.9), p('arch', b + 300, -560, 1),
+          p('kandil', a - 40, -980, 0.9), p('kandil', b + 40, -980, 0.9),
+          p('divan', mid, 0, 1, { opts: { w: (b - a) + 1700 } }),
+          p('door', Rr + 520, 0, 1, { opts: { open: 0 } }),
         ],
       };
     case 'studio':

@@ -115,7 +115,7 @@ export function whisperWords(file, { model = 'base', language = 'auto' } = {}) {
   const be = whisperBackend();
   if (!be) return null;
   if (be.kind === 'faster-whisper') {
-    const r = spawnSync(be.py, ['-I', path.join(ROOT, 'src', 'audio', 'whisper_words.py'), file, model, language], { encoding: 'utf8', maxBuffer: 1 << 26, windowsHide: true });
+    const r = spawnSync(be.py, ['-I', path.join(ROOT, 'src', 'audio', 'whisper_words.py'), file, model, language], { encoding: 'utf8', maxBuffer: 1 << 26, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' } });
     if (r.status !== 0) throw new Error(`faster-whisper failed: ${(r.stderr || '').split('\n').slice(-5).join(' ')}`);
     return JSON.parse(r.stdout.trim().split('\n').pop()).words;
   }
@@ -133,14 +133,16 @@ export function whisperWords(file, { model = 'base', language = 'auto' } = {}) {
 
 export function mapAudioToLines(lines, audio, notes) {
   const map = new Map();
-  const nums = audio.map((f) => ({ f, n: parseInt((path.basename(f).match(/^(\d+)/) || [])[1], 10) }));
-  if (audio.length > 1 && nums.every((x) => !Number.isNaN(x.n))) {
+  for (const l of lines) if (l.audio) { const f = audio.find((a) => path.basename(a) === path.basename(l.audio)); if (f) map.set(l.id, f); else notes.push(`line ${l.index}: audio "${l.audio}" not found`); }
+  const nums = audio.map((f) => ({ f, n: parseInt((path.basename(f).match(/^(\d+)/) || [])[1], 10) })).filter((x) => !Number.isNaN(x.n) && ![...map.values()].includes(x.f));
+  if (audio.length > 1 && nums.length) {
     const zeroBased = nums.some((x) => x.n === 0);
     for (const { f, n } of nums) {
       const line = lines.find((l) => l.index === n + (zeroBased ? 1 : 0));
       if (line) map.set(line.id, f); else notes.push(`${path.basename(f)}: number ${n} has no matching line — ignored`);
     }
-  } else if (audio.length === lines.length) lines.forEach((l, i) => map.set(l.id, audio[i]));
+  } else if (audio.length === lines.length && !map.size) lines.forEach((l, i) => map.set(l.id, audio[i]));
+  for (const f of audio) if (![...map.values()].includes(f) && audio.length > 1) notes.push(`${path.basename(f)} was not used: name it with the line number, e.g. 03_name.wav`);
   for (const l of lines) {
     const f = map.get(l.id);
     if (!f) continue;
@@ -150,6 +152,115 @@ export function mapAudioToLines(lines, audio, notes) {
     }
   }
   return map;
+}
+
+// ---------- timed beats ----------
+
+/** How long the actions of a beat take before its first line should start (seconds). */
+export function beatLead(beat) {
+  let lead = 0.45;
+  for (const a of beat.actions || []) {
+    if (a.gesture === 'place') lead = Math.max(lead, 1.6);
+    if (a.noBlink || a.expression) lead = Math.max(lead, 0.6);
+  }
+  return lead;
+}
+
+/**
+ * Cut one long voice recording into one clip per line using word times on the file timeline.
+ * Returns { [lineId]: { pcm, words (relative to the clip) } }.
+ */
+export function clipsFromWords(pcm, lines, words) {
+  const env = rmsEnvelope(pcm, SR);
+  const clips = {};
+  const spans = [];
+  let k = 0;
+  for (const l of lines) { const ws = words.slice(k, k + l.words.length); k += l.words.length; spans.push({ l, ws, a: Math.max(0, ws[0].s - 0.1), b: ws[ws.length - 1].e + 0.15 }); }
+  for (let i = 0; i + 1 < spans.length; i++) {
+    const A = spans[i], B = spans[i + 1];
+    const lo = Math.min(A.ws.at(-1).e, B.ws[0].s) - 0.05, hi = Math.max(A.ws.at(-1).e, B.ws[0].s) + 0.05;
+    const cut = deepestDip(env.env, env.hop, lo, hi);
+    A.b = Math.min(A.b, cut); B.a = Math.max(B.a, cut);
+  }
+  for (const s of spans) {
+    let a = s.a, b = Math.min(s.b, pcm.length / SR);
+    let clip = pcm.slice(Math.floor(a * SR), Math.ceil(b * SR));
+    const vr = voicedRegion(clip, SR);
+    if (!vr.silent) { clip = clip.slice(Math.floor(vr.start * SR), Math.ceil(vr.end * SR)); a += vr.start; }
+    clips[s.l.id] = { pcm: clip, words: s.ws.map((w) => ({ w: w.w, s: round(Math.max(0, w.s - a)), e: round(Math.max(0.05, w.e - a)) })) };
+  }
+  return clips;
+}
+
+/** Place clips (or estimated durations) into the beats' time windows. */
+export function placeInBeats(lines, beats, clips, T) {
+  const byBeat = Object.fromEntries(beats.map((b) => [b.id, b]));
+  const timed = [], segments = [], notes = [];
+  let t = T.leadIn, prevBeat = null;
+  for (const l of lines) {
+    const c = clips[l.id];
+    const dur = c?.pcm ? c.pcm.length / SR : (c?.dur ?? estimateDuration(l.words, T.speechRate));
+    const b = l.beat ? byBeat[l.beat] : null;
+    let start;
+    if (b && b.id !== prevBeat) {
+      const end = b.end ?? b.start + dur + 1;
+      start = Math.max(b.start + beatLead(b), t);
+      if (start + dur > end - 0.15) start = Math.max(b.start + 0.15, end - 0.15 - dur, t);
+      if (start + dur > end + 0.01) notes.push(`line ${l.index} (${dur.toFixed(2)} s) does not fit beat ${b.id} (${b.start}–${end} s); it runs ${(start + dur - end).toFixed(2)} s over`);
+    } else start = t + (timed.length ? T.gap : 0) + (l.pauseBefore || 0);
+    prevBeat = b ? b.id : null;
+    const words = c?.words ? c.words.map((w) => ({ w: w.w, s: round(start + w.s), e: round(start + w.e) })) : estimateWords(l.words, start, start + dur);
+    timed.push({ id: l.id, index: l.index, speaker: l.speaker, start: round(start), end: round(start + dur), audio: c?.audio || null, words, wordSource: c?.wordSource || 'estimate', ...(c?.pcm ? {} : { estimated: true }) });
+    if (c?.pcm) segments.push({ start, pcm: c.pcm });
+    t = start + dur;
+  }
+  const lastBeatEnd = Math.max(0, ...beats.map((b) => b.end ?? b.start));
+  return { timed, segments, notes, end: Math.max(t + T.tail, lastBeatEnd) };
+}
+
+async function runTimed({ cfg, files, dialogue, audio, userWords, fileMap, notes }) {
+  const T = cfg.timing, lines = dialogue.lines, clips = {};
+  let source;
+  if (fileMap.size) {
+    source = 'per-line-audio';
+    for (const l of lines) {
+      const f = fileMap.get(l.id);
+      if (!f) continue;
+      let pcm = decodeAudio(f, { sr: SR });
+      const vr = voicedRegion(pcm, SR);
+      if (T.trimSilence && !vr.silent) pcm = pcm.slice(Math.floor(vr.start * SR), Math.ceil(vr.end * SR));
+      const env = rmsEnvelope(pcm, SR);
+      clips[l.id] = { pcm, audio: rel(f, files.dir), wordSource: 'estimate-in-audio', words: estimateWords(l.words, 0.02, pcm.length / SR - 0.04, { env: env.env, hop: env.hop, offset: 0 }) };
+    }
+  } else if (audio.length === 1) {
+    const f = audio[0], pcm = decodeAudio(f, { sr: SR });
+    let heard = null;
+    if (userWords) { heard = flatWords(userWords).map((w) => ({ word: wordText(w), start: w.start, end: w.end })); source = 'words.json'; }
+    else if (T.wordTiming !== 'estimate' && whisperBackend()) { log.info(`whisper (${T.whisperModel}) is transcribing ${path.basename(f)} …`); heard = whisperWords(f, { model: T.whisperModel, language: dialogue.language }); source = 'whisper'; }
+    const script = lines.flatMap((l) => l.words);
+    if (heard && heard.length) {
+      const map = alignSequences(script, heard.map((h) => h.word));
+      notes.push(`${map.filter((x) => x >= 0).length}/${script.length} script words matched the ${source} transcript`);
+      const words = timesFromAlignment(script, heard, map);
+      Object.assign(clips, clipsFromWords(pcm, lines, words));
+      for (const l of lines) Object.assign(clips[l.id], { audio: rel(f, files.dir), wordSource: source });
+    } else {
+      source = 'silence-split';
+      const segs = speechSegments(pcm, SR);
+      if (segs.length !== lines.length) notes.push(`found ${segs.length} speech segments for ${lines.length} lines — install faster-whisper or give words.json`);
+      lines.forEach((l, i) => {
+        const s = segs[Math.min(i, segs.length - 1)];
+        if (!s) return;
+        const clip = pcm.slice(Math.floor(s.start * SR), Math.ceil(s.end * SR));
+        const env = rmsEnvelope(clip, SR);
+        clips[l.id] = { pcm: clip, audio: rel(f, files.dir), wordSource: 'estimate-in-audio', words: estimateWords(l.words, 0.02, clip.length / SR - 0.04, { env: env.env, hop: env.hop, offset: 0 }) };
+      });
+    }
+    notes.push(`one recording cut into ${Object.keys(clips).length} line clips and re-timed into the beats`);
+  } else source = 'estimate';
+  const placed = placeInBeats(lines, dialogue.beats, clips, T);
+  notes.push(...placed.notes);
+  return { source: `${source} + beats`, timed: placed.timed, segments: placed.segments, total: placed.end };
 }
 
 // ---------- main ----------
@@ -177,11 +288,15 @@ export async function run(dir, cli = {}) {
   }
   const perLineWords = userWords && userWords.lines ? userWords.lines : null;
   const fileMap = audio.length > 1 || (audio.length === 1 && lines.length === 1) ? mapAudioToLines(lines, audio, notes) : new Map();
-  const timed = lines.map((l) => ({ id: l.id, index: l.index, speaker: l.speaker, start: 0, end: 0, audio: null, words: [], wordSource: 'estimate' }));
-  const segments = []; // { start, pcm }
+  let timed = lines.map((l) => ({ id: l.id, index: l.index, speaker: l.speaker, start: 0, end: 0, audio: null, words: [], wordSource: 'estimate' }));
+  let segments = []; // { start, pcm }
   let total;
 
-  if (fileMap.size) {
+  if (dialogue.beats?.length) {
+    // timed script: every line goes into its beat's window (docs/AUDIO.md "Timed beats")
+    const r = await runTimed({ cfg, files, dialogue, audio, userWords, fileMap, notes });
+    ({ source, timed, segments, total } = r);
+  } else if (fileMap.size) {
     // ---- per-line audio ----
     source = cfg.voice === 'babble' ? 'babble' : 'per-line-audio';
     let t = T.leadIn;

@@ -4,60 +4,198 @@
   "title": "Character",
   "description": "Parametric character. The same object renders in every style pack; colours are snapped to the pack palette when the pack locks it.",
   "type": "object",
-  "required": ["id", "name"],
+  "required": [
+    "id",
+    "name"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-    "name": { "type": "string", "minLength": 1 },
-    "source": { "enum": ["description", "image", "auto", "agent", "json"] },
-    "description": { "type": "string" },
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "enum": [
+        "description",
+        "image",
+        "auto",
+        "agent",
+        "json"
+      ]
+    },
+    "description": {
+      "type": "string"
+    },
     "body": {
       "type": "object",
       "properties": {
-        "shape": { "enum": ["trapezoid", "rect", "round", "pear", "triangle"] },
-        "height": { "type": "number", "minimum": 0.7, "maximum": 1.3 },
-        "width": { "type": "number", "minimum": 0.7, "maximum": 1.4 }
+        "shape": {
+          "enum": [
+            "trapezoid",
+            "rect",
+            "round",
+            "pear",
+            "triangle",
+            "robe"
+          ]
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0.7,
+          "maximum": 1.3
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0.7,
+          "maximum": 1.4
+        }
       }
     },
     "head": {
       "type": "object",
-      "properties": { "shape": { "enum": ["round", "oval", "square", "egg"] }, "size": { "type": "number", "minimum": 0.8, "maximum": 1.25 } }
+      "properties": {
+        "shape": {
+          "enum": [
+            "round",
+            "oval",
+            "square",
+            "egg"
+          ]
+        },
+        "size": {
+          "type": "number",
+          "minimum": 0.8,
+          "maximum": 1.25
+        }
+      }
     },
     "colors": {
       "type": "object",
       "properties": {
-        "skin": { "$ref": "#/$defs/color" },
-        "body": { "$ref": "#/$defs/color" },
-        "hair": { "$ref": "#/$defs/color" },
-        "legs": { "$ref": "#/$defs/color" },
-        "accent": { "$ref": "#/$defs/color" }
+        "skin": {
+          "$ref": "#/$defs/color"
+        },
+        "body": {
+          "$ref": "#/$defs/color"
+        },
+        "hair": {
+          "$ref": "#/$defs/color"
+        },
+        "legs": {
+          "$ref": "#/$defs/color"
+        },
+        "accent": {
+          "$ref": "#/$defs/color"
+        }
       }
     },
     "hair": {
       "type": "object",
-      "properties": { "style": { "enum": ["none", "short", "bob", "long", "bun", "spiky", "curly", "ponytail"] } }
+      "properties": {
+        "style": {
+          "enum": [
+            "none",
+            "short",
+            "bob",
+            "long",
+            "bun",
+            "spiky",
+            "curly",
+            "ponytail"
+          ]
+        }
+      }
     },
     "eyes": {
       "type": "object",
-      "properties": { "size": { "type": "number", "minimum": 0.6, "maximum": 1.6 }, "lashes": { "type": "boolean" } }
+      "properties": {
+        "size": {
+          "type": "number",
+          "minimum": 0.6,
+          "maximum": 1.6
+        },
+        "lashes": {
+          "type": "boolean"
+        }
+      }
     },
-    "brows": { "type": "object", "properties": { "weight": { "type": "number", "minimum": 0.5, "maximum": 2 } } },
-    "nose": { "enum": ["none", "dot", "button", "long"] },
+    "brows": {
+      "type": "object",
+      "properties": {
+        "weight": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 2
+        }
+      }
+    },
+    "nose": {
+      "enum": [
+        "none",
+        "dot",
+        "button",
+        "long"
+      ]
+    },
     "accessories": {
       "type": "array",
       "items": {
-        "enum": ["glasses", "hat", "beanie", "scarf", "bowtie", "tie", "earrings", "beard", "mustache", "freckles", "headphones", "flower", "blush"]
+        "enum": [
+          "glasses",
+          "hat",
+          "beanie",
+          "scarf",
+          "bowtie",
+          "tie",
+          "earrings",
+          "beard",
+          "mustache",
+          "freckles",
+          "headphones",
+          "flower",
+          "blush",
+          "turban",
+          "crown"
+        ]
       }
     },
     "personality": {
       "type": "object",
       "properties": {
-        "energy": { "type": "number", "minimum": 0, "maximum": 1 },
-        "baseline": { "enum": ["neutral", "happy", "sad", "angry", "surprised", "scared", "thinking", "worried", "smug", "laugh"] }
+        "energy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "baseline": {
+          "enum": [
+            "neutral",
+            "happy",
+            "sad",
+            "angry",
+            "surprised",
+            "scared",
+            "thinking",
+            "worried",
+            "smug",
+            "laugh",
+            "stern",
+            "downcast"
+          ]
+        }
       }
     }
   },
   "$defs": {
-    "color": { "type": "string", "description": "#RRGGBB or a colour word in English or Turkish (red, kırmızı, navy, lacivert ...)." }
+    "color": {
+      "type": "string",
+      "description": "#RRGGBB or a colour word in English or Turkish (red, kırmızı, navy, lacivert ...)."
+    }
   }
 }

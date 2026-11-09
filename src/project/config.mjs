@@ -42,16 +42,25 @@ export function naturalCompare(a, b) {
 export function scanProject(dir) {
   const abs = path.resolve(dir);
   const pick = (names) => names.map((n) => path.join(abs, n)).find(exists) || null;
+  const pj = pick(['project.json']);
+  let audioDir = 'audio', musicDir = 'music', sfxDir = 'sfx';
+  if (pj) { try { const j = readJSON(pj); audioDir = j.audioDir || audioDir; musicDir = j.musicDir || musicDir; sfxDir = j.sfxDir || sfxDir; } catch { /* reported by loadConfig */ } }
+  // folders that contain audio but are not the configured ones (doctor suggests "audioDir")
+  const otherAudioDirs = isDir(abs) ? fs.readdirSync(abs).filter((d) => isDir(path.join(abs, d)) && ![audioDir, musicDir, sfxDir, 'build', 'out', 'node_modules', 'styles'].includes(d) && listFiles(path.join(abs, d), AUDIO_EXT).length) : [];
   return {
     dir: abs,
     dialogue: pick(['dialogue.md', 'dialogue.txt', 'dialogue.json', 'dialog.md', 'dialog.txt', 'dialog.json', 'diyalog.md', 'diyalog.txt']),
-    projectJson: pick(['project.json']),
-    words: pick(['words.json', path.join('audio', 'words.json')]),
-    audio: listFiles(path.join(abs, 'audio'), AUDIO_EXT),
+    projectJson: pj,
+    words: pick(['words.json', path.join(audioDir, 'words.json')]),
+    audioDir,
+    otherAudioDirs,
+    audio: listFiles(path.join(abs, audioDir), AUDIO_EXT),
     characters: isDir(path.join(abs, 'characters'))
       ? fs.readdirSync(path.join(abs, 'characters')).filter((f) => /\.(md|txt|json)$/i.test(f) || IMAGE_EXT.includes(path.extname(f).toLowerCase())).sort(naturalCompare).map((f) => path.join(abs, 'characters', f))
       : [],
-    music: listFiles(path.join(abs, 'music'), AUDIO_EXT),
+    music: listFiles(path.join(abs, musicDir), AUDIO_EXT),
+    sfxDir,
+    sfx: listFiles(path.join(abs, sfxDir), AUDIO_EXT),
     build: path.join(abs, 'build'),
     out: path.join(abs, 'out'),
   };

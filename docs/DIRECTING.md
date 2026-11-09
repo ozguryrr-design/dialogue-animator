@@ -33,6 +33,22 @@ The director turns lines and their timings into shots, camera moves and characte
 - **Punch-in** (`camera.punchZoom`, jöle 8 % over 7 f with overshoot) on strong close-ups; **shake** (`camera.shake`, flips sign every frame, decays over 7 f) on angry or surprised "!" words.
 - **Transitions**: in-scene cuts use `transitions.cut` (paper: hard cut, riso: 4-frame dissolve). Scene changes use `transitions.scene` (paper-slide 10 f, iris 12 f, ink-wipe 14 f). An optional `transitions.speakerChange` (jöle: whip, 8 f) is used on every third speaker change.
 
+## Beats (timed scripts)
+- Lines go into their beat's window. Actions start 0.3 s into the beat, and expressions set by a direction start at the beat.
+- **Standing up / sitting down** is shown in a two-shot (from 0.25 s before the move until 0.5 s after it), then the camera cuts back to whoever is speaking. Seated characters drop 20 % of their height behind a low table (`sofra`), are staged by their shoulders (closer together), and group shots put the table edge at 66 % of the frame height. Single shots that contain a posture change become medium shots tall enough for both positions.
+- **Silent beats** (directions only) get their own shot: an insert on the door if a door moves, otherwise a wide shot.
+- **Door → bolt → fade** in one beat: the door starts closing at 20 % of the beat (lasting up to 1.8 s). The thud lands when it shuts, the bolt 0.55 s later, and the fade starts 0.2 s after the bolt and ends 0.4 s before the beat does.
+- **A long silence after a line** (≥ 1.6 s before anyone speaks again) cuts to the listener 0.3 s after the line, so the pause plays on their face. This is skipped when the listener is the next speaker (the "cut early" rule already covers it).
+- **Intense lines** (`stern`) get a close-up, like strong lines, but without roll or punch-in.
+
+## Narration
+Lines marked `voiceOver` (narrators, `Ali (dış ses):`) are heard, not acted:
+- Nobody's mouth moves, nobody gestures, nobody reacts. A narrator has no character and no place on stage.
+- Narration starts on a wide shot of the whole stage. Every 3.2 s, at a word boundary, the camera moves to something else: the cast in medium shots, or the props of the set in inserts when the stage is empty.
+- A character's mouth stays closed during their own `(dış ses)` line, and they are not counted as "the speaker" for cuts and rhythm.
+- `@cast` puts characters on stage who have no spoken line in that scene.
+- Bubble captions fall back to `line` for narration: there is nobody to attach the balloon to.
+
 ## Acting
 - The speaker's expression = the line's emotion, set `cutLeadFrames` before the line.
 - **Listeners react to the trigger word** (the emotional word found by the lexicon, or the last word) `motion.reactionLeadFrames` (4) frames **before** it is heard. Reaction map: surprised→surprised, angry→worried, sad→sad, happy/laugh→happy, scared→scared, smug→thinking, worried→worried. Questions make the listener think.

@@ -9,7 +9,8 @@ export function lintStoryboard(sb, style, cfg) {
   shots.forEach((s, i) => {
     const d = durs[i];
     if (d < D.minShot - 1e-6 && i !== shots.length - 1) W.push(`${s.id}: ${d.toFixed(2)} s is shorter than the minimum shot (${D.minShot} s)`);
-    if (d > D.maxShot + 1.0 && s.type !== 'two') W.push(`${s.id}: ${d.toFixed(2)} s hold on a single — consider a reaction cut (max ${D.maxShot} s)`);
+    const fadesOut = (sb.events || []).some((e) => e.type === 'fade' && e.value === 'out' && e.t >= s.start && e.t < s.end);
+    if (d > D.maxShot + 1.0 && s.type !== 'two' && s.type !== 'wide' && !fadesOut) W.push(`${s.id}: ${d.toFixed(2)} s hold on a single — consider a reaction cut (max ${D.maxShot} s)`);
     const c = s.camera;
     if (c.from.h === c.to.h && c.from.x === c.to.x && c.from.y === c.to.y) W.push(`${s.id}: static camera (every hold should creep)`);
     const pxPerUnit = sb.video.height / c.from.h;
@@ -24,6 +25,7 @@ export function lintStoryboard(sb, style, cfg) {
   // speaker on screen while talking
   let talk = 0, seen = 0;
   for (const l of sb.lines) {
+    if (l.voiceOver) continue;
     for (let t = l.start; t < l.end; t += 1 / fps) {
       talk++;
       const s = shots.find((x) => t >= x.start && t < x.end);

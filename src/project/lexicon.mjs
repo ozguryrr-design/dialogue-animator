@@ -3,7 +3,7 @@
 // these only provide defaults; explicit [tags] in the dialogue and agent annotations always win.
 import { foldKey } from '../lib/text.mjs';
 
-export const EXPRESSIONS = ['neutral', 'happy', 'laugh', 'sad', 'angry', 'surprised', 'scared', 'thinking', 'worried', 'smug'];
+export const EXPRESSIONS = ['neutral', 'happy', 'laugh', 'sad', 'angry', 'surprised', 'scared', 'thinking', 'worried', 'smug', 'stern', 'downcast'];
 
 /** Tag words (inside [brackets]) -> canonical expression. */
 export const TAGS = {
@@ -17,6 +17,8 @@ export const TAGS = {
   thinking: ['thinking', 'dusunceli', 'dusunur', 'pensive', 'curious', 'merakli', 'wondering'],
   worried: ['worried', 'endiseli', 'kaygili', 'tedirgin', 'nervous', 'anxious', 'gergin'],
   smug: ['smug', 'kendinden', 'kurnaz', 'sly', 'alayci', 'ukala', 'proud', 'gururlu', 'sirit'],
+  stern: ['stern', 'sert', 'soguk', 'cold', 'hard', 'tehditkar', 'menacing', 'ciddi', 'serious', 'buz gibi', 'icy'],
+  downcast: ['downcast', 'boynu bukuk', 'mahcup', 'ashamed', 'eziklik', 'yenik', 'defeated', 'boyun eg', 'submissive'],
 };
 
 /** Words in the spoken text that hint at an emotion (prefix stems on folded words). */
@@ -50,6 +52,47 @@ export const DIRECTIONS = [
   { stems: ['basini salla', 'nod'], gesture: 'nod' },
 ];
 
+/**
+ * Stage actions in beat directions ("0–5 sn — Süleyman kâsesini sofraya bırakır."). Each match becomes
+ * timed events: posture changes, gestures, expressions, prop changes, sound effects, a fade.
+ */
+export const ACTIONS = [
+  { stems: ['ayaga kalk', 'kalkar', 'stands up', 'stand up', 'gets up', 'rises'], posture: 'stand' },
+  { stems: ['oturur', 'oturuyor', 'otururlar', 'sits down', 'sits', 'sitting', 'seated'], posture: 'sit' },
+  { stems: ['birak', 'koyar', 'puts down', 'put down', 'sets down', 'places'], gesture: 'place', sfx: 'clink', prop: 'bowl' },
+  { stems: ['gozunu ayirmaz', 'gozlerini ayirmaz', 'ayirmaz', 'dik dik', 'stares', 'staring', 'does not look away', 'never takes'], expression: 'stern', noBlink: true },
+  { stems: ['bakisini indir', 'basini eg', 'gozlerini kacir', 'gozunu kacir', 'looks down', 'looks away', 'lowers his gaze', 'lowers her gaze', 'lowers their gaze'], expression: 'downcast' },
+  { stems: ['kapi kapan', 'kapiyi kapat', 'door closes', 'door shuts', 'closes the door', 'shuts the door'], door: 'close', sfx: 'door' },
+  { stems: ['kapi acil', 'kapiyi ac', 'door opens', 'opens the door'], door: 'open', sfx: 'door' },
+  { stems: ['surgu', 'kilitlen', 'kilit', 'bolt', 'locks', 'locked'], sfx: 'bolt' },
+  { stems: ['ekran karar', 'kararir', 'karanlik', 'fade out', 'fades out', 'fade to black', 'blackout', 'goes dark'], fade: 'out' },
+  { stems: ['el salla', 'waves'], gesture: 'wave' },
+  { stems: ['omuz silk', 'shrugs'], gesture: 'shrug' },
+];
+
+/** Split a direction into sentences and turn each into actions. `names` maps folded first names -> speaker id. */
+export function parseActions(text, names = {}, fallbackTarget = null) {
+  const out = [];
+  for (const sentence of String(text).split(/(?<=[.!?…])\s+/).filter((x) => x.trim())) {
+    const k = ' ' + sentence.split(/\s+/).map(foldKey).join(' ') + ' ';
+    const kj = k.replace(/\s+/g, '');
+    // the subject is the name that appears first in the sentence ("Süleyman gözünü İbrahim'den ayırmaz")
+    let target = fallbackTarget, best = Infinity;
+    for (const [nm, id] of Object.entries(names)) { const i = k.indexOf(' ' + nm); if (i >= 0 && i < best) { best = i; target = id; } }
+    for (const a of ACTIONS) {
+      if (a.stems.some((s) => { const f = s.split(' ').map(foldKey).join(' '); return k.includes(' ' + f) || (f.length > 6 && kj.includes(f.replace(/\s+/g, ''))); })) {
+        const { stems, ...rest } = a;
+        out.push({ ...rest, target, text: sentence.trim() });
+      }
+    }
+  }
+  return out;
+}
+
+/** Speaker names that mean an off-screen voice (folded). More can be declared with "@narrator Name". */
+export const NARRATOR_NAMES = ['anlatici', 'disses', 'disanlatim', 'disanlatici', 'hikayeanlaticisi', 'narrator', 'voiceover', 'vo', 'storyteller'];
+export const isNarratorName = (name) => NARRATOR_NAMES.includes(foldKey(name));
+
 /** Greeting words -> wave gesture at the start of the line. */
 export const GREETINGS = ['merhaba', 'selam', 'gunaydin', 'iyiaksamlar', 'hosgeldin', 'hello', 'hi', 'hey', 'goodmorning', 'bye', 'gorusuruz', 'hoscakal'];
 
@@ -67,6 +110,7 @@ export const PROP_WORDS = {
 
 /** Setting words (scene headers or dialogue) -> stage setting id (engine/settings.mjs). */
 export const SETTING_WORDS = {
+  palace: ['saray', 'sarayda', 'palace', 'iftar', 'sofra', 'divan', 'hunkar', 'padisah', 'sultan', 'kosk', 'castle', 'throne'],
   kitchen: ['mutfak', 'kitchen', 'yemek', 'cay', 'caydanlik', 'buzdolabi', 'fridge'],
   cafe: ['kafe', 'cafe', 'kahveci', 'coffee shop', 'kahve dukkani', 'restoran', 'restaurant'],
   'living-room': ['salon', 'oturma', 'living', 'ev', 'home', 'koltuk', 'sofa', 'kanepe'],

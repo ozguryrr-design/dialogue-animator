@@ -15,6 +15,8 @@ export const EXPR = {
   thinking: { brow: 0.1, tilt: -0.12, eye: 1, lid: 0.1, shape: 'dot', look: [0.5, -0.6], curve: 0.05, open: 0, width: 0.8, skew: 0.5 },
   worried: { brow: 0.06, tilt: 0.42, eye: 1, lid: 0, shape: 'dot', look: [0, 0.1], curve: -0.35, open: 0, width: 0.9, skew: -0.25 },
   smug: { brow: -0.02, tilt: -0.1, eye: 0.9, lid: 0.45, shape: 'dot', look: [0.3, 0], curve: 0.6, open: 0, width: 1, skew: 0.7 },
+  stern: { brow: -0.07, tilt: -0.18, eye: 0.92, lid: 0.32, shape: 'dot', look: [0.15, 0], curve: -0.15, open: 0, width: 0.85, skew: 0 },
+  downcast: { brow: 0.02, tilt: 0.3, eye: 0.9, lid: 0.5, shape: 'dot', look: [0, 0.95], curve: -0.3, open: 0, width: 0.8, skew: 0 },
 };
 
 export const EXPRESSION_NAMES = Object.keys(EXPR);
@@ -34,7 +36,7 @@ export function blendExpr(a, b, u) {
 /** How a listener reacts to a line said with this emotion. */
 export const REACTION = {
   surprised: 'surprised', angry: 'worried', sad: 'sad', happy: 'happy', laugh: 'happy',
-  scared: 'scared', smug: 'thinking', worried: 'worried', thinking: 'thinking',
+  scared: 'scared', smug: 'thinking', worried: 'worried', thinking: 'thinking', stern: 'worried',
 };
 
 /** Little symbol popped next to a reacting character. */

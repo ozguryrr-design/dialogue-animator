@@ -4,26 +4,85 @@
   "title": "build/dialogue.json",
   "description": "Parsed dialogue. Agents may edit emotion, gesture or scene settings here before running `da board`.",
   "type": "object",
-  "required": ["title", "language", "speakers", "scenes", "lines"],
+  "required": [
+    "title",
+    "language",
+    "speakers",
+    "scenes",
+    "lines"
+  ],
   "properties": {
-    "title": { "type": "string" },
-    "language": { "type": "string" },
-    "source": { "type": "string" },
+    "title": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
     "speakers": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "object", "required": ["id", "name"], "properties": { "id": { "type": "string" }, "name": { "type": "string" } } }
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "narrator": {
+            "type": "boolean",
+            "description": "Only ever heard: no character, no place on stage."
+          }
+        }
+      }
     },
     "scenes": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "label": { "type": "string" },
-          "setting": { "type": ["string", "null"], "enum": [null, "kitchen", "cafe", "living-room", "office", "street", "park", "studio"] }
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "setting": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              null,
+              "kitchen",
+              "cafe",
+              "living-room",
+              "office",
+              "street",
+              "park",
+              "studio",
+              "palace"
+            ]
+          },
+          "cast": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Characters on stage without having to speak (@cast)."
+          }
         }
       }
     },
@@ -32,25 +91,205 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "index", "speaker", "text", "emotion", "scene"],
+        "required": [
+          "id",
+          "index",
+          "speaker",
+          "text",
+          "emotion",
+          "scene"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "index": { "type": "integer", "minimum": 1 },
-          "speaker": { "type": "string" },
-          "speakerName": { "type": "string" },
-          "text": { "type": "string" },
-          "words": { "type": "array", "items": { "type": "string" } },
-          "emotion": { "enum": ["neutral", "happy", "laugh", "sad", "angry", "surprised", "scared", "thinking", "worried", "smug"] },
-          "emotionSource": { "type": "string" },
-          "triggerWord": { "type": ["integer", "null"] },
-          "gesture": { "type": ["string", "null"], "enum": [null, "wave", "point", "shrug", "facepalm", "cheer", "explain", "think", "nod"] },
-          "directions": { "type": "array", "items": { "type": "string" } },
-          "scene": { "type": "string" },
-          "pauseBefore": { "type": "number", "minimum": 0 },
-          "audio": { "type": ["string", "null"] }
+          "id": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "speaker": {
+            "type": "string"
+          },
+          "speakerName": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "words": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "emotion": {
+            "enum": [
+              "neutral",
+              "happy",
+              "laugh",
+              "sad",
+              "angry",
+              "surprised",
+              "scared",
+              "thinking",
+              "worried",
+              "smug",
+              "stern",
+              "downcast"
+            ]
+          },
+          "emotionSource": {
+            "type": "string"
+          },
+          "triggerWord": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "gesture": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              null,
+              "wave",
+              "point",
+              "shrug",
+              "facepalm",
+              "cheer",
+              "explain",
+              "think",
+              "nod",
+              "place",
+              "hips"
+            ]
+          },
+          "directions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scene": {
+            "type": "string"
+          },
+          "pauseBefore": {
+            "type": "number",
+            "minimum": 0
+          },
+          "audio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "beat": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "id of the timed beat this line belongs to"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "voiceOver": {
+            "type": "boolean",
+            "description": "Narration: heard, the mouth does not move and the camera does not cut to the speaker."
+          }
         }
       }
     },
-    "warnings": { "type": "array", "items": { "type": "string" } }
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "beats": {
+      "type": "array",
+      "description": "Timed beats from lines like '0–5 sn — direction'. Lines inside a beat are placed in its time window; its actions become events.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "start"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "scene": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "sfx": {
+      "type": "array",
+      "description": "Sound effect cues (@sfx).",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "at": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "gainDb": {
+            "type": "number"
+          },
+          "beat": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nextLine": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
   }
 }

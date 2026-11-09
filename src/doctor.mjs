@@ -109,14 +109,23 @@ export async function projectChecks(dir, checks, styles) {
   } catch (e) { add('dialogue', 'fail', e.message, 'See docs/PROJECT_FOLDER.md for the dialogue format.'); return; }
 
   const n = dialogue.lines.length, a = files.audio.length;
+  if (!a && files.otherAudioDirs.length) add('audio folder', 'warn', `no audio in ${files.audioDir}/, but ${files.otherAudioDirs.map((d) => d + '/').join(', ')} contains audio`, `Move the files to ${files.audioDir}/ or add "audioDir": "${files.otherAudioDirs[0]}" to project.json.`);
+  if (dialogue.beats?.length) add('timed beats', 'ok', `${dialogue.beats.length} beats (${dialogue.beats[0].start}–${dialogue.beats.at(-1).end ?? '…'} s): lines are placed in their time windows`);
   if (files.words) add('timing source', 'ok', `words.json (${rel(files.words, files.dir)}) — exact word timings`);
-  else if (a === 0) add('timing source', cfg.voice === 'babble' ? 'ok' : 'warn', cfg.voice === 'babble' ? 'babble voice will be synthesized per line' : 'no audio/: timing will be ESTIMATED from text length and the video is silent', 'Best: one file per line in audio/ (01_name.wav, 02_name.wav ...).');
+  else if (a === 0) add('timing source', cfg.voice === 'babble' ? 'ok' : 'warn', cfg.voice === 'babble' ? 'babble voice will be synthesized per line' : `no audio in ${files.audioDir}/: timing will be ESTIMATED from text length and the video is silent`, 'Best: one file per line in audio/ (01_name.wav, 02_name.wav ...).');
   else if (a === n) add('timing source', 'ok', `${a} files for ${n} lines — per-line audio (most reliable)`);
   else if (a === 1) add('timing source', 'ok', `one voice file — lines found by ${checks.find((x) => x.name.startsWith('whisper'))?.status === 'ok' ? 'whisper' : 'silence detection (install faster-whisper for better results)'}`);
   else add('timing source', 'warn', `${a} audio files for ${n} lines — files are matched by their number prefix; lines without a file get estimated timing`, 'Name files 01_name.wav, 02_name.wav ... one per line.');
 
   add('characters', 'ok', files.characters.length ? `${files.characters.length} file(s) in characters/` : 'none — characters will be generated from the dialogue');
-  add('music', 'ok', cfg.music.mode === 'own' ? `own: ${path.basename(cfg.music.file)}` : cfg.music.mode);
+  add('music', files.music.length > 1 ? 'warn' : 'ok', cfg.music.mode === 'own' ? `own: ${path.basename(cfg.music.file)}` : cfg.music.mode, 'Only the first file in the music folder is used; set "music": {"mode": "own", "file": "music/x.mp3"} to pick another.');
+  const vo = dialogue.lines.filter((l) => l.voiceOver);
+  if (vo.length) add('narration', 'ok', `${vo.length} line(s) heard but not seen: ${[...new Set(vo.map((l) => l.speakerName))].join(', ')}`);
+  const { resolveSfx } = await import('./audio/sfx.mjs');
+  if (files.sfx.length || dialogue.sfx?.length) {
+    const lost = (dialogue.sfx || []).filter((s) => !resolveSfx(s.name, files.sfx));
+    add('sound effects', lost.length ? 'fail' : 'ok', lost.length ? `not found: ${lost.map((s) => s.name).join(', ')}` : `${files.sfx.length} file(s) in ${files.sfxDir}/, ${(dialogue.sfx || []).length} cue(s) in the script`, `Put a file with that name in ${files.sfxDir}/ (e.g. ${files.sfxDir}/${lost[0]?.name || 'name'}.wav) or remove the @sfx line. Built-in names: door, bolt, clink, knock, whoosh.`);
+  }
 
   const style = styles.find((s) => s.id === cfg.style);
   if (style) {

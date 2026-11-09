@@ -29,12 +29,28 @@ export function halftonePattern(ctx, env, pitch, r) {
   return pat;
 }
 
-export function propItems(p) {
-  const g = propGeometry(p.type, p.opts || {});
+/** Prop options at time t: "prop" events animate numbers (door open 1 -> 0) or toggle visibility. */
+export function propState(env, p, t) {
+  const opts = { ...(p.opts || {}) };
+  let visible = p.visible !== false;
+  for (const e of (env?.idx?.prop?.[p.id]) || []) {
+    if (t < e.t) break;
+    if (e.key === 'visible') { visible = !!e.value; continue; }
+    const from = opts[e.key] ?? 0, u = Math.min(1, (t - e.t) / (e.dur || 0.001));
+    const k = u * u * (3 - 2 * u);
+    opts[e.key] = from + (e.value - from) * k;
+  }
+  return { opts, visible };
+}
+
+export function propItems(p, env = null, t = 0) {
+  const { opts, visible } = propState(env, p, t);
+  if (!visible) return null;
+  const g = propGeometry(p.type, opts);
   return { k: 'group', tf: { x: p.x, y: p.y, sx: (p.flip ? -1 : 1) * (p.s || 1), sy: p.s || 1 }, items: g.items, id: p.id };
 }
 
-export function drawBackground(ctx, env, scene, cam, seed) {
+export function drawBackground(ctx, env, scene, cam, seed, t = 0) {
   if (env.hooks?.background) { env.hooks.background(ctx, env, scene, cam, seed); return; }
   const bg = scene.background || { place: 'studio', wall: 'wall', floor: 'floor', props: [] };
   const v = visibleRect(env, cam, 0.4);
@@ -66,11 +82,19 @@ export function drawBackground(ctx, env, scene, cam, seed) {
   }
   const floorProps = (bg.props || []).filter((p) => p.layer === 'floor');
   const backProps = (bg.props || []).filter((p) => !p.layer || p.layer === 'back');
-  drawShapes(ctx, floorProps.map(propItems), env, seed + 23);
-  drawShapes(ctx, backProps.map(propItems), env, seed + 37);
+  drawShapes(ctx, floorProps.map((p) => propItems(p, env, t)), env, seed + 23);
+  drawShapes(ctx, backProps.map((p) => propItems(p, env, t)), env, seed + 37);
+  // night / mood tint over the set only (characters stay lit, as if by lamplight)
+  if (bg.tint) {
+    ctx.save();
+    ctx.globalAlpha = bg.tint.alpha ?? 0.3;
+    ctx.fillStyle = env.color(bg.tint.color || 'dark');
+    ctx.fillRect(X0, Math.min(v.y0, -4000), X1 - X0, 8000);
+    ctx.restore();
+  }
 }
 
-export function drawForeground(ctx, env, scene, seed) {
+export function drawForeground(ctx, env, scene, seed, t = 0) {
   const front = (scene.background?.props || []).filter((p) => p.layer === 'front');
-  if (front.length) drawShapes(ctx, front.map(propItems), env, seed + 53);
+  if (front.length) drawShapes(ctx, front.map((p) => propItems(p, env, t)), env, seed + 53);
 }

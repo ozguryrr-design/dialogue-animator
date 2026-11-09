@@ -6,7 +6,9 @@ import path from 'node:path';
 import { readJSON, writeJSON, writeText, exists, log, rel, round, VERSION } from '../lib/util.mjs';
 import { assertValid } from '../lib/schema.mjs';
 import { nuclei, isRoundVowel, stripPunct } from '../lib/text.mjs';
-import { rng, hash32, clamp } from '../engine/math.mjs';
+import { rng, hash32, clamp, ease } from '../engine/math.mjs';
+import { SIT_DROP } from '../engine/state.mjs';
+import { foldKey } from '../lib/text.mjs';
 import { nearest, toLab } from '../engine/color.mjs';
 import { BODIES } from '../engine/env.mjs';
 import { compose } from '../engine/settings.mjs';
@@ -21,6 +23,8 @@ import { run as runAlign } from '../audio/align.mjs';
 import { lintStoryboard } from './lint.mjs';
 
 const STRONG = new Set(['surprised', 'angry', 'scared', 'laugh']);
+// quiet but intense lines also earn a close-up (no roll, no punch)
+const INTENSE = new Set(['stern']);
 
 // ---------------- characters ----------------
 export function resolveCharacters(characters, style) {
@@ -37,10 +41,20 @@ export function resolveCharacters(characters, style) {
       c.colors.accent = nearest(c.colors.accent || c.colors.body, all, [c.colors.body]);
       // two characters should not share a hair colour when the palette is small (they would read as twins)
       // hair keeps its lightness first (dark brown -> the darkest ink, not a pastel)
-      const want = toLab(c.colors.hair || pal.roles.ink);
-      const avoid = new Set([c.colors.skin, c.colors.body, ...usedHair].map((x) => x.toUpperCase()));
-      const ranked = all.map((p) => { const L = toLab(p); return { p, d: Math.hypot(L[0] - want[0], L[1] - want[1], L[2] - want[2]) + 1.2 * Math.abs(L[0] - want[0]) }; }).sort((a, b) => a.d - b.d);
-      c.colors.hair = (ranked.find((r) => !avoid.has(r.p.toUpperCase())) || ranked[0]).p;
+      const wantHex = c.colors.hair || pal.roles.ink, want = toLab(wantHex);
+      const hue = (lab) => (Math.atan2(lab[2], lab[1]) * 180) / Math.PI, chroma = (lab) => Math.hypot(lab[1], lab[2]);
+      const U = (x) => x.toUpperCase();
+      const usedH = new Set(usedHair.map(U)), self = new Set([c.colors.skin, c.colors.body].map(U));
+      const ranked = all.map((p) => {
+        const L = toLab(p);
+        let d = Math.hypot(L[0] - want[0], L[1] - want[1], L[2] - want[2]) + 1.2 * Math.abs(L[0] - want[0]);
+        const dh = Math.abs(((hue(L) - hue(want) + 540) % 360) - 180);
+        if (chroma(L) > 20 && chroma(want) > 12 && dh > 70) d += 200; // never turn brown hair teal
+        if (usedH.has(U(p))) d += 40; // prefer a different hair colour per character, softly
+        if (self.has(U(p))) d += 25;
+        return { p, d };
+      }).sort((a, b) => a.d - b.d);
+      c.colors.hair = ranked[0].p;
       usedHair.push(c.colors.hair);
       c.colors.legs = nearest(c.colors.legs || pal.roles.ink, all, [c.colors.body]);
     }
@@ -49,19 +63,31 @@ export function resolveCharacters(characters, style) {
 }
 
 // ---------------- framing ----------------
+/** Half width at the shoulders incl. arms (seated characters: the rest is hidden by the table). */
+export function halfShoulders(m) { return (m.topW ? m.topW / 2 : m.halfW * 0.6) + m.H * 0.12; }
 function groundFrac(aspect) { return aspect < 0.8 ? 0.7 : aspect < 1.2 ? 0.8 : 0.86; }
 
 export function frameFor(type, ctx, focus, extra = {}) {
   const { scene, M, aspect } = ctx;
   const gf = groundFrac(aspect), portrait = aspect < 1;
+  const off = (id, t) => (ctx.offAt ? ctx.offAt(scene, id, t) : 0);
+  const t0 = extra.t0 ?? 0, t1 = extra.t1 ?? t0;
+  if ((type === 'two' || type === 'wide') && !scene.cast.length) {
+    // nobody on stage (narration over an empty set)
+    const h = Math.max(1120 / aspect, 1200);
+    return { x: 0, y: -gf * h + h / 2, h };
+  }
   if (type === 'two' || type === 'wide') {
-    const xs = scene.cast.map((id) => [scene.positions[id] - M[id].halfW, scene.positions[id] + M[id].halfW]);
+    const seated = scene.cast.some((id) => off(id, t0) > 1 || off(id, t1) > 1);
+    const hw = (id) => (seated ? halfShoulders(M[id]) : M[id].halfW);
+    const xs = scene.cast.map((id) => [scene.positions[id] - hw(id), scene.positions[id] + hw(id)]);
     const minX = Math.min(...xs.map((v) => v[0])), maxX = Math.max(...xs.map((v) => v[1]));
     const maxH = Math.max(...scene.cast.map((id) => M[id].H));
     const w = maxX - minX + 140;
-    let h = Math.max(w / aspect, (maxH * 1.06) / (gf - 0.05));
+    const g = seated && portrait ? 0.66 : gf; // people at a table: the table edge sits a bit higher, less empty floor
+    let h = Math.max(w / aspect, (maxH * 1.06) / (g - 0.05));
     if (type === 'wide') h *= 1.18;
-    return { x: (minX + maxX) / 2, y: -gf * h + h / 2, h };
+    return { x: (minX + maxX) / 2, y: -g * h + h / 2, h };
   }
   if (type === 'insert') {
     const p = extra.prop, g = propGeometry(p.type, p.opts || {});
@@ -69,8 +95,12 @@ export function frameFor(type, ctx, focus, extra = {}) {
     const h = Math.max(ph * 2.3, (pw * 2.0) / aspect, 420);
     return { x: p.x, y: p.y - ph / 2 - h * 0.04, h };
   }
-  const m = M[focus], x0 = scene.positions[focus], dir = scene.facing[focus] ?? 1;
+  const m0 = M[focus], x0 = scene.positions[focus], dir = scene.facing[focus] ?? 1;
+  // sitting lowers the head; if the character stands up during the shot, keep both positions in frame
+  const o0 = off(focus, t0), o1 = off(focus, t1), oTop = Math.min(o0, o1), oRange = Math.abs(o0 - o1);
+  const m = { ...m0, headCY: m0.headCY + oTop };
   const headTop = m.headCY - m.headR;
+  if (oRange > 1 && type !== 'medium') return frameFor('medium', ctx, focus, extra);
   if (type === 'close' || type === 'reaction') {
     const h = m.headR * 2 * (portrait ? 2.75 : 1.9) * (type === 'reaction' ? 1.1 : 1);
     const top = headTop - m.headR * 0.45 - h * 0.08; // room for hair and hats
@@ -93,7 +123,7 @@ export function frameFor(type, ctx, focus, extra = {}) {
     return { x, y: top + h / 2, h };
   }
   // medium
-  const h = m.H * (portrait ? 1.1 : 0.88);
+  const h = m.H * (portrait ? 1.1 : 0.88) + oRange * 1.1;
   const top = headTop - h * 0.07;
   return { x: x0 + dir * h * aspect * 0.05, y: top + h / 2, h };
 }
@@ -112,18 +142,33 @@ function planScene(scene, lines, ctx) {
     if (prevSpeaker && others.includes(prevSpeaker)) return prevSpeaker;
     return others.sort((a, b) => Math.abs(scene.positions[a] - scene.positions[L.speaker]) - Math.abs(scene.positions[b] - scene.positions[L.speaker]))[0];
   };
-  let singles = 0, lastInsert = -99, start = 0;
+  let singles = 0, lastInsert = -99, start = 0, voIdx = 0;
   if (multi) {
     add(scene.start, 'two', null, 'establishing two-shot');
     const l0 = lines[0];
-    if (l0 && l0.end - scene.start > 3.2) {
-      const w = l0.words.find((x) => x.s - scene.start >= 1.6);
+    if (l0 && !l0.voiceOver && l0.end - scene.start > 3.2) {
+      const w = l0.words.find((x) => x.s - scene.start >= 1.6 && x.s - l0.start >= 1.0);
       if (w) { add(w.s - lead, nextFraming(l0.speaker), l0.speaker, 'cut into the speaker during a long opening line'); singles = 1; }
     }
-    start = 1;
+    start = lines[0]?.voiceOver ? 0 : 1;
   }
   for (let li = (multi ? start : 0); li < lines.length; li++) {
     const L = lines[li], P = lines[li - 1], cur = shots[shots.length - 1];
+    if (L.voiceOver) {
+      // narration has nobody to cut to: show the whole stage, then look around every ~3 s
+      const details = scene.background.props.filter((p) => !['counter', 'divan', 'sofra', 'rug', 'building', 'sofa', 'sun', 'cloud'].includes(p.type) && p.visible !== false && p.layer !== 'front');
+      const pool = cast.length ? cast.map((id) => ({ type: 'medium', focus: id, why: `narration: a look at ${id}` })) : details.map((p) => ({ type: 'insert', focus: null, prop: p.id, why: `narration: ${p.type}` }));
+      if (!cur || cur.type !== 'wide') add(L.start - lead, 'wide', null, 'narration over the whole scene', { line: L.id });
+      singles = 0;
+      for (let t = L.start + 3.2; pool.length && t < L.end - 1;) {
+        const w = L.words.find((x) => x.s >= t);
+        if (!w || w.s > L.end - 1) break;
+        const p = pool[voIdx++ % pool.length];
+        add(w.s - lead, p.type, p.focus, p.why, { line: L.id, prop: p.prop });
+        t = w.s + 3.2;
+      }
+      continue;
+    }
     const dur = L.end - L.start;
     const same = P && P.speaker === L.speaker;
     const strong = STRONG.has(L.emotion) || (/!\s*$/.test(L.text) && dur < 1.6);
@@ -133,8 +178,8 @@ function planScene(scene, lines, ctx) {
     if (P && !same && gap >= 0.9 && reactions) { cutAt = P.end + 0.15; why = 'cut early: the next speaker reacts in the pause'; }
     if (!(same && cur && cur.focus === L.speaker && L.end - cur.start <= maxShot)) {
       let type;
-      if (multi && singles >= 3 && dur <= 3) { type = 'two'; why = 're-establish after three singles'; }
-      else if (strong) { type = 'close'; why = `close-up for a strong line (${L.emotion})`; }
+      if (strong || INTENSE.has(L.emotion)) { type = 'close'; why = `close-up for a ${strong ? 'strong' : 'intense'} line (${L.emotion})`; }
+      else if (multi && singles >= 3 && dur <= 3) { type = 'two'; why = 're-establish after three singles'; }
       else type = nextFraming(L.speaker);
       if (cur && cur.type === type && (cur.focus === (type === 'two' ? null : L.speaker))) type = type === 'close' ? 'medium' : 'close';
       add(cutAt, type, type === 'two' ? null : L.speaker, why, { line: L.id });
@@ -171,8 +216,38 @@ function planScene(scene, lines, ctx) {
       }
     }
   }
+  // silent beats (directions only): show the door if one moves, otherwise the whole room
+  const silent = (ctx.beats || []).filter((b) => b.scene === scene.id && !b.lines.length);
+  for (const b of silent) {
+    if (b._door) add(b.start, 'insert', null, `silent beat: ${b.text.slice(0, 40)}`, { prop: b._door });
+    else add(b.start, 'wide', null, `silent beat: ${b.text.slice(0, 40)}`);
+  }
+  // a long silence after a line shows the listener taking it in
+  if (multi && reactions) {
+    lines.forEach((L, i) => {
+      if (L.voiceOver) return;
+      const nextLine = lines[i + 1];
+      const nextBeat = silent.find((b) => b.start > L.end);
+      const next = Math.min(nextLine ? nextLine.start - lead : Infinity, nextBeat ? nextBeat.start : Infinity, scene.end);
+      const listener = listenerOf(L, lines[i - 1]?.speaker);
+      if (listener && next - L.end >= 1.6 && !(nextLine && nextLine.speaker === listener)) {
+        add(L.end + 0.3, 'reaction', listener, 'the listener takes in the silence', { line: L.id });
+      }
+    });
+  }
+  // someone stands up or sits down: show it in a two-shot, then go back to whoever speaks
+  if (multi) {
+    for (const e of (ctx.postureEvents || []).filter((x) => x.t >= scene.start && x.t < scene.end && scene.cast.includes(x.target))) {
+      const a = e.t - 0.25, b = e.t + e.dur + 0.5;
+      add(a, 'two', null, `${e.target} ${e.value === 'stand' ? 'stands up' : 'sits down'}`);
+      const L = lines.find((x) => x.start < b && x.end > b + 0.9);
+      if (L) add(b, 'close', L.speaker, 'back to the speaker after the move', { line: L.id });
+    }
+  }
   // finalize: order, ends, minimum length, no identical neighbours
+  if (!shots.length) add(scene.start, 'wide', null, 'nothing else to show');
   shots.sort((a, b) => a.start - b.start);
+  shots[0].start = scene.start; // the first shot always starts with the scene
   for (let i = 0; i < shots.length; i++) shots[i].end = i + 1 < shots.length ? shots[i + 1].start : scene.end;
   for (let i = 1; i < shots.length; i++) {
     const s = shots[i], p = shots[i - 1];
@@ -189,6 +264,7 @@ function planScene(scene, lines, ctx) {
     if (p && p.type === s.type && p.focus === s.focus && p.prop === s.prop) { p.end = s.end; continue; }
     out.push(s);
   }
+  out[0].start = scene.start; // dropping a very short opener must not leave a hole before the next shot
   return out;
 }
 
@@ -196,12 +272,12 @@ function cameraFor(shot, ctx) {
   const { scene, style, fps, aspect, M } = ctx;
   const C = style.camera;
   const prop = shot.prop ? scene.background.props.find((p) => p.id === shot.prop) : null;
-  const from = { ...frameFor(shot.type, ctx, shot.focus, { prop }), roll: 0 };
+  const from = { ...frameFor(shot.type, ctx, shot.focus, { prop, t0: shot.start, t1: shot.end }), roll: 0 };
   const frames = Math.max(1, (shot.end - shot.start) * fps);
   const strong = shot.type === 'close' && ctx.lineById[shot.line] && STRONG.has(ctx.lineById[shot.line].emotion);
   const push = strong ? (C.punchPushPerFrame || C.pushPerFrame * 2) : C.pushPerFrame;
   let shrink = Math.min(0.15, push * frames);
-  if (shot.type === 'two' || shot.type === 'wide') {
+  if ((shot.type === 'two' || shot.type === 'wide') && scene.cast.length) {
     // a group shot may only creep in as far as the empty margin allows (nobody gets cut)
     const xs = scene.cast.map((id) => [scene.positions[id] - M[id].halfW, scene.positions[id] + M[id].halfW]);
     const contentW = Math.max(...xs.map((v) => v[1])) - Math.min(...xs.map((v) => v[0]));
@@ -210,11 +286,11 @@ function cameraFor(shot, ctx) {
   }
   // zoom toward the face (or the frame centre for group shots)
   let fx = from.x, fy = from.y;
-  if (shot.focus) { const m = M[shot.focus]; fx = scene.positions[shot.focus]; fy = m.headCY; }
+  if (shot.focus) { const m = M[shot.focus]; fx = scene.positions[shot.focus]; fy = m.headCY + (ctx.offAt ? ctx.offAt(scene, shot.focus, shot.end) : 0); }
   const to = { x: from.x + (fx - from.x) * shrink, y: from.y + (fy - from.y) * shrink, h: from.h * (1 - shrink), roll: 0 };
   if (shot.type === 'two' || shot.type === 'wide') {
     const sp = ctx.speakerDuring(shot);
-    if (sp) to.x += (scene.positions[sp] - from.x) * 0.05;
+    if (sp && scene.positions[sp] !== undefined) to.x += (scene.positions[sp] - from.x) * 0.05;
   }
   if (strong && C.rollDeg) { ctx.rollSign = -(ctx.rollSign || 1); from.roll = to.roll = (ctx.rollSign * C.rollDeg * Math.PI) / 180; }
   // pan speed limit (px per frame at output resolution)
@@ -247,6 +323,7 @@ function buildEvents(sb, ctx) {
   let fxCool = -99;
   const chars = Object.fromEntries(sb.characters.map((c) => [c.id, c]));
   for (const L of sb.lines) {
+    if (L.voiceOver) continue; // narration: nobody on stage acts it out
     const scene = sb.scenes.find((s) => s.id === L.scene);
     const base = chars[L.speaker].personality?.baseline || 'neutral';
     ev.push({ t: round(L.start - lead), type: 'expression', target: L.speaker, value: L.emotion === 'neutral' ? base : L.emotion, why: `says ${L.id}` });
@@ -311,12 +388,13 @@ function roundTrack(lines, id, frames, fps) {
   return a.join('');
 }
 
-function blinkTrack(id, events, duration, style, seed) {
+function blinkTrack(id, events, duration, style, seed, noBlink = []) {
   const r = rng(`${seed}:${id}:blink`), [lo, hi] = style.motion.blinkEvery || [2.2, 5.5];
   const changes = events.filter((e) => e.target === id && e.type === 'expression').map((e) => e.t);
   const out = [];
   for (let t = r.range(0.4, 1.6); t < duration - 0.2; t += r.range(lo, hi)) {
     if (changes.some((c) => Math.abs(c - t) < 0.15)) continue;
+    if (noBlink.some(([a, b]) => t >= a - 0.1 && t <= b)) continue; // a hard stare does not blink
     out.push(round(t));
   }
   return out;
@@ -377,7 +455,7 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
     const tl = timing.lines.find((x) => x.id === l.id);
     return {
       id: l.id, index: l.index, speaker: l.speaker, scene: l.scene, start: tl.start, end: tl.end, text: l.text,
-      emotion: l.emotion, gesture: l.gesture || null, trigger: l.triggerWord ?? null,
+      emotion: l.emotion, gesture: l.gesture || null, trigger: l.triggerWord ?? null, voiceOver: !!l.voiceOver, beat: l.beat || null,
       words: tl.words.map((w) => ({ w: w.w, s: w.s, e: w.e })),
     };
   });
@@ -385,16 +463,27 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
   // scenes
   const scenes = dialogue.scenes.map((s, i) => {
     const sl = lines.filter((l) => l.scene === s.id);
-    const castIds = order.filter((id) => sl.some((l) => l.speaker === id));
-    const gapW = (a, b) => Math.max(480, M[a].halfW + M[b].halfW + 50);
+    const castIds = order.filter((id) => sl.some((l) => l.speaker === id && !l.voiceOver) || (s.cast || []).includes(id));
+    const sB = (dialogue.beats || []).filter((b) => b.scene === s.id);
+    const foldedText = ' ' + [s.label || '', ...sl.map((l) => l.text), ...sB.map((b) => b.text)].join(' ').split(/\s+/).map(foldKey).join(' ') + ' ';
+    const seatedAll = / (sofra|iftar|oturuyor|otururlar|sitting|seated|dinner)/.test(foldedText);
+    const posture = {};
+    for (const id of castIds) {
+      const first = sB.flatMap((b) => b.actions.filter((a) => a.posture && a.target === id))[0];
+      posture[id] = seatedAll || first?.posture === 'stand' ? 'sit' : 'stand';
+    }
+    const anySeated = Object.values(posture).includes('sit');
+    const hw = (id) => (anySeated ? halfShoulders(M[id]) : M[id].halfW);
+    const gapW = (a, b) => Math.max(anySeated ? 440 : 480, hw(a) + hw(b) + 50);
     const xs = [0];
     for (let k = 1; k < castIds.length; k++) xs.push(xs[k - 1] + gapW(castIds[k - 1], castIds[k]));
     const shift = xs[xs.length - 1] / 2;
     const positions = Object.fromEntries(castIds.map((id, k) => [id, round(xs[k] - shift)]));
     const facing = Object.fromEntries(castIds.map((id) => [id, positions[id] <= 0 ? 1 : -1]));
     if (castIds.length === 1) facing[castIds[0]] = 1;
-    const setting = s.setting || findSetting(sl.map((l) => l.text).join(' ')) || 'living-room';
-    const span = [Math.min(...Object.values(positions)), Math.max(...Object.values(positions))];
+    const sBeats = (dialogue.beats || []).filter((b) => b.scene === s.id);
+    const setting = s.setting || findSetting([...sl.map((l) => l.text), ...sBeats.map((b) => b.text)].join(' ')) || 'living-room';
+    const span = castIds.length ? [Math.min(...Object.values(positions)), Math.max(...Object.values(positions))] : [-280, 280];
     const background = compose(setting, span);
     background.props = background.props.map((p, k) => ({ id: `${s.id}-p${k + 1}`, ...p }));
     // make sure every prop a line mentions exists in the scene, so a cutaway can show it
@@ -412,18 +501,78 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
         if (prop) l.props.push({ ...h, propId: prop.id });
       }
     }
-    return { id: s.id, label: s.label || '', setting, cast: castIds, positions, facing, background, first: sl[0], last: sl[sl.length - 1] };
+    const bFirst = sBeats[0], bLast = sBeats[sBeats.length - 1];
+    const first = sl[0] || { start: bFirst?.start ?? 0 }, last = sl[sl.length - 1] || { end: bLast?.end ?? bFirst?.start ?? 0 };
+    return { id: s.id, label: s.label || '', setting, cast: castIds, positions, facing, background, posture, first, last, text: [s.label || '', ...sl.map((l) => l.text), ...sBeats.map((b) => b.text)].join(' ') };
   });
   scenes.forEach((s, i) => {
     s.start = i === 0 ? 0 : round((scenes[i - 1].last.end + s.first.start) / 2);
     s.end = i === scenes.length - 1 ? duration : round((s.last.end + scenes[i + 1].first.start) / 2);
   });
 
+  // timed beats: mood, posture, table, door, bowl, sound effects, fades (docs/DIRECTING.md "Beats")
+  const beats = (dialogue.beats || []).map((b) => ({ ...b, end: b.end ?? b.start + 3 }));
+  const beatEvents = [], noBlink = {};
+  for (const s of scenes) {
+    const folded = ' ' + s.text.split(/\s+/).map(foldKey).join(' ') + ' ';
+    if (/ (gece|iftar|aksam|night|evening|midnight|karanlik)/.test(folded)) s.background.tint = { color: 'dark', alpha: 0.3 };
+    const sBeats = beats.filter((b) => b.scene === s.id);
+    if (s.cast.length && Object.values(s.posture).includes('sit') && !s.background.props.some((p) => p.type === 'sofra')) {
+      const minX = Math.min(...s.cast.map((id) => s.positions[id] - M[id].halfW)), maxX = Math.max(...s.cast.map((id) => s.positions[id] + M[id].halfW));
+      const avgH = s.cast.reduce((a, id) => a + M[id].H, 0) / s.cast.length;
+      s.background.props.push({ id: `${s.id}-sofra`, type: 'sofra', x: round((minX + maxX) / 2), y: 0, s: 1, layer: 'front', opts: { w: Math.round(maxX - minX + 220), h: Math.round(avgH * 0.22) } });
+    }
+    for (const b of sBeats) {
+      let doorEnd = null, lastSfx = null;
+      for (const a of b.actions) {
+        const target = a.target && s.cast.includes(a.target) ? a.target : null;
+        const t0 = b.start + 0.3;
+        if (a.posture && target) beatEvents.push({ t: round(t0), type: 'posture', target, value: a.posture, dur: 1.0, why: a.text });
+        if (a.expression && target) beatEvents.push({ t: round(b.start + 0.05), type: 'expression', target, value: a.expression, why: a.text });
+        if (a.noBlink && target) (noBlink[target] ||= []).push([b.start, b.end]);
+        if (a.gesture && target) {
+          beatEvents.push({ t: round(t0), type: 'gesture', target, value: a.gesture, dur: 1.3, why: a.text });
+          const sofra = s.background.props.find((p) => p.type === 'sofra');
+          if (a.prop && sofra) {
+            const id = `${s.id}-${a.prop}-${target}`;
+            s.background.props.push({ id, type: a.prop, x: round(s.positions[target] + (s.facing[target] ?? 1) * 150), y: -(sofra.opts.h + 22), s: 1, layer: 'front', visible: false });
+            beatEvents.push({ t: round(t0 + 0.8), type: 'prop', target: id, key: 'visible', value: true });
+          }
+          if (a.sfx) { lastSfx = t0 + 0.82; beatEvents.push({ t: round(lastSfx), type: 'sfx', value: a.sfx }); }
+        }
+        if (a.door) {
+          let door = s.background.props.find((p) => p.type === 'door');
+          if (!door) { door = { id: `${s.id}-door`, type: 'door', x: round(Math.max(...Object.values(s.positions)) + 900), y: 0, s: 1, opts: {} }; s.background.props.push(door); }
+          const closing = a.door === 'close';
+          door.opts = { ...(door.opts || {}), open: closing ? 1 : 0 };
+          const bDur = b.end - b.start, d0 = b.start + Math.min(1.2, bDur * 0.2), dur = Math.min(1.8, Math.max(1, bDur * 0.3));
+          beatEvents.push({ t: round(d0), type: 'prop', target: door.id, key: 'open', value: closing ? 0 : 1, dur: round(dur), why: a.text });
+          doorEnd = d0 + dur;
+          if (a.sfx) { lastSfx = doorEnd - 0.04; beatEvents.push({ t: round(lastSfx), type: 'sfx', value: a.sfx }); }
+          b._door = door.id;
+        }
+        if (a.sfx && !a.door && !a.gesture) { lastSfx = doorEnd ? doorEnd + 0.55 : b.start + 0.4; beatEvents.push({ t: round(lastSfx), type: 'sfx', value: a.sfx, why: a.text }); }
+        if (a.fade) { const f0 = (lastSfx ?? b.start + 1) + 0.2; beatEvents.push({ t: round(f0), type: 'fade', value: a.fade, dur: round(Math.max(0.6, Math.min(1.6, b.end - f0 - 0.4))), why: a.text }); }
+      }
+    }
+  }
+  const postureEvents = beatEvents.filter((e) => e.type === 'posture').sort((a, b) => a.t - b.t);
+  const offAt = (scene, id, t) => {
+    let v = scene.posture?.[id] === 'sit' ? 1 : 0;
+    for (const e of postureEvents) {
+      if (e.target !== id || e.t < scene.start - 1e-6 || e.t > scene.end) continue;
+      if (t < e.t) break;
+      const to = e.value === 'sit' ? 1 : 0;
+      v += (to - v) * ease.smoother(clamp((t - e.t) / e.dur));
+    }
+    return v * SIT_DROP * M[id].H;
+  };
+
   // shots
   const lineById = Object.fromEntries(lines.map((l) => [l.id, l]));
   const shots = [];
-  const ctxBase = { style, fps, aspect, H, M, lead, minShot: D.minShot, maxShot: D.maxShot, reactions: D.reactions, cutaways: D.cutaways, lineById };
-  ctxBase.speakerDuring = (shot) => { const l = lines.find((x) => x.start < shot.end && x.end > shot.start); return l ? l.speaker : null; };
+  const ctxBase = { style, fps, aspect, H, M, lead, minShot: D.minShot, maxShot: D.maxShot, reactions: D.reactions, cutaways: D.cutaways, lineById, offAt, beats, postureEvents };
+  ctxBase.speakerDuring = (shot) => { const l = lines.find((x) => !x.voiceOver && x.start < shot.end && x.end > shot.start); return l ? l.speaker : null; };
   let speakerChanges = 0;
   for (const [si, scene] of scenes.entries()) {
     const ctx = { ...ctxBase, scene };
@@ -443,6 +592,19 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
     });
   }
 
+  // sound effect cues written in the script: at a given time, at the start of their beat, or just before the next line
+  const lastEnd = lines.length ? lines[lines.length - 1].end : 0;
+  for (const c of dialogue.sfx || []) {
+    const next = c.nextLine ? lineById[c.nextLine] : null, beat = c.beat ? beats.find((b) => b.id === c.beat) : null;
+    let t = c.at;
+    if (t === null || t === undefined) {
+      if (next && (!beat || next.beat === beat.id)) t = Math.max(0, next.start - 0.15);
+      else if (beat) t = beat.start + 0.1;
+      else t = lastEnd + 0.2;
+    }
+    beatEvents.push({ t: round(Math.min(t, duration - 0.05)), type: 'sfx', value: c.name, gainDb: c.gainDb || 0, why: 'cue in the script' });
+  }
+
   const sb = {
     version: 1,
     meta: { title: dialogue.title, generator: `dialogue-animator ${VERSION}`, seed: cfg.seed, language: dialogue.language, timingSource: timing.source, estimatedTiming: !!timing.estimated },
@@ -450,7 +612,8 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
     style: { id: style.id, family: style.family, body: style.character?.body || 'paper-cut' },
     stage: { characterHeight: 900, groundY: 0 },
     characters: chars,
-    scenes: scenes.map(({ first, last, ...s }) => s),
+    scenes: scenes.map(({ first, last, text, ...s }) => s),
+    beats: beats.map(({ _door, ...b }) => b),
     lines: lines.map(({ props, ...l }) => l),
     shots,
     events: [],
@@ -459,17 +622,20 @@ export function direct({ dialogue, characters, timing, envelope, style, cfg }) {
     audio: { voice: timing.voice, music: null, mix: null },
   };
   for (const s of sb.scenes) s.start = round(s.start), s.end = round(s.end);
-  sb.events = buildEvents(sb, { ...ctxBase, style });
+  sb.events = [...buildEvents(sb, { ...ctxBase, style }), ...beatEvents];
   // punch-ins for bouncy styles on strong close-ups
   if (style.camera.punchZoom) for (const s of shots) if (s.type === 'close' && lineById[s.line] && STRONG.has(lineById[s.line].emotion)) sb.events.push({ t: s.start, type: 'punch', amount: style.camera.punchZoom, frames: style.camera.punchFrames || 7, until: s.end });
   sb.events.sort((a, b) => a.t - b.t);
   for (const c of chars) {
     const env = envelope?.speakers?.[c.id];
     sb.tracks.mouth[c.id] = env ? Array.from({ length: frames }, (_, f) => env[f] || 0) : mouthFromWords(lines, c.id, frames, fps);
+    // heard but not seen speaking: a character's own off-screen lines leave the mouth closed
+    for (const L of lines) if (L.voiceOver && L.speaker === c.id) for (let f = Math.floor((L.start - 0.05) * fps); f <= Math.ceil((L.end + 0.05) * fps) && f < frames; f++) sb.tracks.mouth[c.id][f] = 0;
     sb.tracks.round[c.id] = roundTrack(lines, c.id, frames, fps);
-    sb.tracks.blinks[c.id] = blinkTrack(c.id, sb.events, duration, style, cfg.seed);
+    sb.tracks.blinks[c.id] = blinkTrack(c.id, sb.events, duration, style, cfg.seed, noBlink[c.id] || []);
   }
   sb.captions = buildCaptions(cfg.captions, lines, aspect);
+  for (const it of sb.captions.items) if (lineById[it.line]?.voiceOver) it.voiceOver = true;
   // nothing of one scene may leak into the next: clip captions and symbols at scene ends
   const sceneEnd = Object.fromEntries(sb.scenes.map((s) => [s.id, s.end]));
   for (const it of sb.captions.items) { const L = lineById[it.line]; if (L) it.end = round(Math.min(it.end, sceneEnd[L.scene] - 2 / fps)); }

@@ -7,9 +7,13 @@ const HELP = `dialogue-animator ${VERSION}
 
 Usage: da <command> [project-folder] [options]
 
+Start here:
+  next     <dir>          Says the ONE thing to do next (--json for agents). Repeat until DONE.
+  init     <dir>          Prepare audio/, sfx/, music/, characters/ (keeps your script). --sample adds a sample script
+  answer   <dir>          Store answers in project.json: --style --format --captions --music --voice, or --defaults
+
 Pipeline (in order; "make" runs all of them):
   doctor   [dir]          Check tools, fonts and (optionally) a project folder
-  init     <dir>          Create a starter project folder
   parse    <dir>          dialogue.md/.txt/.json -> build/dialogue.json
   cast     <dir>          characters/ or the dialogue -> build/characters.json
   babble   <dir>          Synthesize a gibberish voice per line (no recording needed)
@@ -40,6 +44,8 @@ Common options:
 `;
 
 const commands = {
+  next: () => import('../src/next.mjs'),
+  answer: () => import('../src/project/answer.mjs'),
   doctor: () => import('../src/doctor.mjs'),
   init: () => import('../src/project/init.mjs'),
   parse: () => import('../src/project/parse.mjs'),

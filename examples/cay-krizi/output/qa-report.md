@@ -12,10 +12,10 @@ Video: `out/cay-krizi.mp4` · verdict: **PASS** · 0 fail, 0 warn
 | frames | white frames | PASS | none |
 | frames | frozen spans >= 12 f | PASS | none (every hold moves) |
 | frames | unplanned pops | PASS | none |
-| audio | loudness | PASS | -13.8 LUFS integrated (target -14 ±1), LRA 3.1 LU |
+| audio | loudness | PASS | -13.7 LUFS integrated (target -14 ±1), LRA 3.1 LU |
 | audio | true peak | PASS | -5.3 dBTP (limit -1.0) |
 | audio | long silences | PASS | none |
-| sync | speech vs storyboard | PASS | audio is aligned (cross-correlation over ±15 f) |
+| sync | speech vs storyboard | PASS | final audio matches the timed voice track exactly (0 frames) |
 | sync | audio vs video length | PASS | audio 22.848 s, video 22.867 s |
 | layout | captions in safe area | PASS | word captions stay inside the 4 % margin |
 | layout | captions off faces | PASS | no caption covers a face |

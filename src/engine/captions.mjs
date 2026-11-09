@@ -24,11 +24,12 @@ function activeItem(env, t) {
 
 /** Returns a layout object (or null) for the caption visible at time t. `faces` = screen circles to avoid. */
 export function captionLayout(env, t, measure, faces = [], speakerHead = null) {
-  const mode = env.sb.captions?.mode || 'none';
+  let mode = env.sb.captions?.mode || 'none';
   if (mode === 'none') return null;
   const hit = activeItem(env, t);
   if (!hit) return null;
   const { item, index } = hit;
+  if (mode === 'bubble' && item.voiceOver) mode = 'line'; // narration has no speaker to attach a bubble to
   const W = env.W, H = env.H, k = W / 1080;
   const cfg = env.style.captions[mode] || {};
   const upper = !!cfg.uppercase;

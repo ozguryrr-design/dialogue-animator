@@ -4,7 +4,7 @@
 import { hash32, rand } from './math.mjs';
 import { drawShapes } from './materials.mjs';
 import { cameraAt, applyView, toScreen } from './camera.mjs';
-import { characterState } from './state.mjs';
+import { characterState, postureAt } from './state.mjs';
 import { drawBackground, drawForeground, halftonePattern } from './background.mjs';
 import { drawFx } from './fx.mjs';
 import { captionLayout, drawCaption } from './captions.mjs';
@@ -35,7 +35,7 @@ function drawCharacter(ctx, env, ch, scene, t, seed) {
   const st = characterState(env, ch, scene, t);
   const { items } = env.body.build(ch, st, env);
   ctx.save();
-  ctx.translate(x, 0);
+  ctx.translate(x, st.postureY || 0);
   if (env.style.family === 'gummy') {
     const m = metricsOf(env, ch);
     ctx.fillStyle = 'rgba(0,0,0,0.32)';
@@ -61,11 +61,11 @@ export function drawShot(ctx, env, k, t) {
   const seed = boilSeed(env, t);
   ctx.save();
   applyView(ctx, env, cam);
-  drawBackground(ctx, env, scene, cam, seed);
+  drawBackground(ctx, env, scene, cam, seed, t);
   // inserts show the object alone; everything else shows the cast (focus drawn last, in front)
   const order = shot.type === 'insert' ? [] : [...scene.cast].sort((a, b) => (a === shot.focus) - (b === shot.focus));
   for (const id of order) drawCharacter(ctx, env, env.chars[id], scene, t, seed);
-  drawForeground(ctx, env, scene, seed);
+  drawForeground(ctx, env, scene, seed, t);
   if (shot.type !== 'insert') {
     const visible = new Set(facesInShot(env, k, t).filter((f) => f.visible && f.cut < 0.2).map((f) => f.id));
     drawFx(ctx, env, scene, t, seed, (ch) => metricsOf(env, ch), visible);
@@ -80,7 +80,8 @@ export function facesInShot(env, k, t) {
   const cam = cameraAt(env, shot, t), s = env.H / cam.h;
   return scene.cast.map((id) => {
     const ch = env.chars[id], m = metricsOf(env, ch);
-    const [cx, cy] = toScreen(env, cam, scene.positions[id], m.faceY ?? m.headCY);
+    const py = postureAt(env, ch, scene, t, m.H).y;
+    const [cx, cy] = toScreen(env, cam, scene.positions[id], (m.faceY ?? m.headCY) + py);
     const r = (m.faceR ?? m.headR) * s;
     const outX = Math.max(0, r - cx, cx + r - env.W), outY = Math.max(0, r - cy, cy + r - env.H);
     return { id, cx, cy, r, cut: Math.min(1, Math.max(outX, outY) / (2 * r)), visible: cx + r > 0 && cx - r < env.W && cy + r > 0 && cy - r < env.H };
@@ -146,6 +147,14 @@ export function renderFrame(ctx, env, t) {
   const L = frameLayout(env, t);
   drawCaption(ctx, env, L.caption, t);
   paperGrain(ctx, env);
+  // fades: 'out' goes to black and stays black; 'in' comes up from black
+  for (const e of env.idx.fade) {
+    if (t < e.t) continue;
+    const u = Math.min(1, (t - e.t) / (e.dur || 1));
+    const a = e.value === 'in' ? 1 - u : u;
+    if (a <= 0) continue;
+    ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = e.color || '#000000'; ctx.fillRect(0, 0, env.W, env.H); ctx.restore();
+  }
   if (env.hooks?.afterFrame) env.hooks.afterFrame(ctx, env, t);
   ctx.restore();
 }

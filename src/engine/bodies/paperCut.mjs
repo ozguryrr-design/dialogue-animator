@@ -17,10 +17,10 @@ export function metrics(ch, style) {
   return { H, W, headR, headCY, torsoTop, legH, topW: tw * H * W, botW: bw * H * W, halfW: Math.max(bw, tw) * H * W * 0.5 + H * 0.07, faceY: headCY };
 }
 
-const TORSO = { trapezoid: [0.3, 0.46], rect: [0.36, 0.38], round: [0.32, 0.44], pear: [0.26, 0.52], triangle: [0.48, 0.3] };
+const TORSO = { trapezoid: [0.3, 0.46], rect: [0.36, 0.38], round: [0.32, 0.44], pear: [0.26, 0.52], triangle: [0.48, 0.3], robe: [0.3, 0.54] };
 
 function torsoPts(m, shape) {
-  const top = m.torsoTop, bot = -m.legH + 22, tw = m.topW / 2, bw = m.botW / 2;
+  const top = m.torsoTop, bot = shape === 'robe' ? -m.H * 0.035 : -m.legH + 22, tw = m.topW / 2, bw = m.botW / 2;
   if (shape === 'round') {
     const cy = (top + bot) / 2, ry = (bot - top) / 2, rx = Math.max(tw, bw) * 1.08;
     const pts = [];
@@ -155,6 +155,18 @@ function accessoryShapes(ch, m, st, cols) {
     top.push({ k: 'rrect', x: -r * 0.78, y: cy - r * 1.5, w: r * 1.56, h: r * 0.74, r: r * 0.2, fill: cols.accent });
     top.push({ k: 'rrect', x: -r * 0.78, y: cy - r * 0.98, w: r * 1.56, h: r * 0.14, r: 0, fill: cols.ink, noShadow: true });
   }
+  if (acc.has('turban')) {
+    // a wrapped dome sitting above the brow line, with wrap bands and a small top cap
+    const base = cy - r * 0.52, light = 'light', band = mix(cols.ink, '#F3EBDD', 0.82);
+    top.push({ k: 'poly', pts: [...arcPts(0, base, r * 1.06, Math.PI, Math.PI * 2, 20).map(([x, y]) => [x, base + (y - base) * 0.78])], fill: light });
+    for (const [k, a0, a1] of [[0.22, 1.1, 1.7], [0.5, 1.2, 1.84], [0.78, 1.32, 1.93]]) top.push({ k: 'stroke', pts: arcPts(0, base + r * 0.12, r * (1.0 - k * 0.32), Math.PI * a0, Math.PI * a1, 10).map(([x, y]) => [x, base + (y - base) * 0.82]), w: r * 0.06, fill: band, noShadow: true });
+    top.push({ k: 'rrect', x: -r * 1.06, y: base - r * 0.06, w: r * 2.12, h: r * 0.2, r: r * 0.1, fill: light });
+    top.push({ k: 'ellipse', x: 0, y: base - r * 0.8, rx: r * 0.2, ry: r * 0.1, fill: cols.accent });
+  }
+  if (acc.has('crown')) {
+    const base = cy - r * 0.7;
+    top.push({ k: 'poly', pts: [[-r * 0.75, base], [-r * 0.8, base - r * 0.55], [-r * 0.4, base - r * 0.25], [0, base - r * 0.7], [r * 0.4, base - r * 0.25], [r * 0.8, base - r * 0.55], [r * 0.75, base]], fill: 'accent1' });
+  }
   if (acc.has('beanie')) {
     top.push({ k: 'poly', pts: [...arcPts(0, cy - r * 0.3, r * 1.04, Math.PI * 1.02, Math.PI * 1.98, 18)], fill: cols.accent });
     top.push({ k: 'rrect', x: -r * 1.08, y: cy - r * 0.48, w: r * 2.16, h: r * 0.28, r: r * 0.1, fill: darken(cols.accent, 0.15) });
@@ -192,10 +204,12 @@ export function build(ch, st, env) {
   const breathe = 1 + (env.style.motion?.breath || 0) * st.breath;
   const items = [];
 
-  // legs
+  // legs (a robe covers them: only the shoes show)
   const lw = m.H * 0.07, lx = m.H * 0.065 * m.W;
-  items.push({ k: 'rrect', x: -lx - lw / 2, y: -m.legH, w: lw, h: m.legH, r: lw * 0.2, fill: cols.legs });
-  items.push({ k: 'rrect', x: lx - lw / 2, y: -m.legH, w: lw, h: m.legH, r: lw * 0.2, fill: cols.legs });
+  if (ch.body?.shape !== 'robe') {
+    items.push({ k: 'rrect', x: -lx - lw / 2, y: -m.legH, w: lw, h: m.legH, r: lw * 0.2, fill: cols.legs });
+    items.push({ k: 'rrect', x: lx - lw / 2, y: -m.legH, w: lw, h: m.legH, r: lw * 0.2, fill: cols.legs });
+  }
   items.push({ k: 'ellipse', x: -lx - lw * 0.15, y: -lw * 0.18, rx: lw * 0.75, ry: lw * 0.3, fill: cols.legs, noShadow: true });
   items.push({ k: 'ellipse', x: lx + lw * 0.15, y: -lw * 0.18, rx: lw * 0.75, ry: lw * 0.3, fill: cols.legs, noShadow: true });
 
@@ -203,7 +217,8 @@ export function build(ch, st, env) {
   const upper = [];
   const hip = -m.legH + 22;
   const headGroup = [];
-  const hair = hairShapes(m, ch.hair?.style || 'short', cols.hair, dir);
+  const covered = (ch.accessories || []).includes('turban');
+  const hair = hairShapes(m, covered ? 'none' : ch.hair?.style || 'short', cols.hair, dir);
   const acc = accessoryShapes(ch, m, st, cols);
   // order: back hair, head, front hair, then the face on top (brows must never hide under a fringe)
   headGroup.push(...hair.back.map((s) => ({ ...s })), headShape(m, ch.head?.shape || 'round', cols.skin), ...hair.front);

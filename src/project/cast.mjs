@@ -223,7 +223,8 @@ export async function run(dir, cli = {}) {
   const notes = [];
   const used = new Set();
   const characters = [];
-  for (const [i, sp] of dialogue.speakers.entries()) {
+  for (const s of dialogue.speakers) if (s.narrator) notes.push(`${s.name}: narration only (heard, no character on screen)`);
+  for (const [i, sp] of dialogue.speakers.filter((s) => !s.narrator).entries()) {
     let ch = autoCharacter(sp, i, dialogue.lines);
     const matches = findFileFor(sp, files.characters);
     const json = matches.find((f) => f.toLowerCase().endsWith('.json'));

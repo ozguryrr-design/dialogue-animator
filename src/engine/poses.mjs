@@ -17,6 +17,8 @@ const G = {
   think: () => ({ near: { target: [0.25, 0.95] }, head: -0.07 }),
   hips: () => ({ near: { sh: 0.75, el: -1.55 }, far: { sh: 0.75, el: -1.55 } }),
   nod: (p) => ({ head: 0.07 * Math.sin(p * TAU * 2) }),
+  // reach down-forward to set something on a table, then come back
+  place: (p) => ({ near: { sh: 0.55 + 0.45 * Math.sin(Math.PI * Math.min(1, p * 1.2)), el: 0.35 }, lean: 0.05 * Math.sin(Math.PI * p), head: 0.05 }),
 };
 export const GESTURES = Object.keys(G);
 

@@ -64,13 +64,18 @@ export async function run(dir, args = {}) {
   }
   // expression changes pop on purpose (style squash), gestures start on purpose
   const sq = (style.motion?.squashFrames || 2) + 2;
-  for (const e of sb.events) if (e.type === 'expression' || e.type === 'gesture' || e.type === 'punch' || e.type === 'shake') {
+  for (const e of sb.events) if (e.type === 'expression' || e.type === 'gesture' || e.type === 'punch' || e.type === 'shake' || e.type === 'prop' || e.type === 'posture') {
     const f0 = Math.round(e.t * fps);
-    for (let f = f0 - 1; f <= f0 + sq; f++) planned.add(f);
+    for (let f = f0 - 1; f <= f0 + sq + Math.round((e.dur || 0) * fps * (e.type === 'prop' ? 1 : 0)); f++) planned.add(f);
   }
+  // a planned fade to black: black frames from its start to the end are intended
+  const fadeOut = sb.events.find((e) => e.type === 'fade' && e.value === 'out');
+  const fadeFrom = fadeOut ? Math.round(fadeOut.t * fps) : Infinity;
+  for (const e of sb.events) if (e.type === 'fade') for (let f = Math.round(e.t * fps) - 1; f <= Math.round((e.t + (e.dur || 1)) * fps) + 1; f++) planned.add(f);
+  for (const it of sb.captions?.items || []) for (const t of [it.start, it.end]) { const f = Math.round(t * fps); for (let k = f - 1; k <= f + 1; k++) planned.add(k); }
   const black = [], white = [], pops = [];
   for (let i = 0; i < n; i++) {
-    if (luma[i] < 0.04) black.push(i);
+    if (luma[i] < 0.04 && i < fadeFrom) black.push(i);
     if (luma[i] > 0.94 && !planned.has(i)) white.push(i);
   }
   for (let i = 1; i < n; i++) {
@@ -83,11 +88,11 @@ export async function run(dir, args = {}) {
   const frozen = [];
   let runStart = null;
   for (let i = 1; i <= n; i++) {
-    const still = i < n && diff[i] < 0.02;
+    const still = i < n && diff[i] < 0.02 && i < fadeFrom;
     if (still && runStart === null) runStart = i;
     if (!still && runStart !== null) { if (i - runStart >= 12) frozen.push([runStart, i - 1]); runStart = null; }
   }
-  add('frames', 'black frames', black.length ? 'fail' : 'pass', black.length ? fmtRanges(ranges(black), fps) : 'none');
+  add('frames', 'black frames', black.length ? 'fail' : 'pass', black.length ? fmtRanges(ranges(black), fps) : (fadeOut ? `none before the planned fade to black at ${fadeOut.t.toFixed(2)} s` : 'none'));
   add('frames', 'white frames', white.length ? 'warn' : 'pass', white.length ? fmtRanges(ranges(white), fps) : 'none');
   add('frames', 'frozen spans >= 12 f', frozen.length ? 'fail' : 'pass', frozen.length ? fmtRanges(frozen, fps) : 'none (every hold moves)');
   add('frames', 'unplanned pops', pops.length ? 'warn' : 'pass', pops.length ? `${fmtRanges(ranges(pops), fps)} — look at these frames in the sheets` : 'none');
@@ -104,21 +109,26 @@ export async function run(dir, args = {}) {
 
   // ---- sync ----
   if (sb.audio?.voice && sb.lines.length) {
+    // The storyboard is timed to build/voice.wav by construction (align). What can still drift is the
+    // finished file: compare its audio with that voice track around every line (10 ms envelopes,
+    // cross-correlation inside ±0.6 s windows, so music beds and sound effects elsewhere do not matter).
     const pcm = decodeAudio(video, { sr: 8000 });
-    const spf = 8000 / fps, nf = Math.floor(pcm.length / spf);
-    const env = new Float64Array(nf);
-    for (let f = 0; f < nf; f++) { let s = 0; for (let k = 0; k < spf; k++) { const x = pcm[Math.floor(f * spf) + k] || 0; s += x * x; } env[f] = Math.sqrt(s / spf); }
-    const act = new Float64Array(nf);
-    for (const l of sb.lines) for (let f = Math.floor(l.start * fps); f < Math.ceil(l.end * fps) && f < nf; f++) act[f] = 1;
-    const mean = (arr) => arr.reduce((x, y) => x + y, 0) / arr.length;
-    const me = mean(env), ma = mean(act);
-    let best = 0, bestLag = 0;
-    for (let lag = -15; lag <= 15; lag++) {
-      let s = 0;
-      for (let f = 0; f < nf; f++) { const g = f + lag; if (g >= 0 && g < nf) s += (env[g] - me) * (act[f] - ma); }
-      if (s > best) { best = s; bestLag = lag; }
-    }
-    add('sync', 'speech vs storyboard', Math.abs(bestLag) <= 1 ? 'pass' : Math.abs(bestLag) <= 3 ? 'warn' : 'fail', `audio is ${bestLag === 0 ? 'aligned' : `${Math.abs(bestLag)} frame(s) ${bestLag > 0 ? 'late' : 'early'}`} (cross-correlation over ±15 f)`);
+    const voicePath = path.join(files.dir, sb.audio.voice);
+    const vpcm = exists(voicePath) ? decodeAudio(voicePath, { sr: 8000 }) : null;
+    const env = (x) => { const h = 80, n = Math.floor(x.length / h), e = new Float64Array(n); for (let i = 0; i < n; i++) { let q = 0; for (let k = 0; k < h; k++) { const v = x[i * h + k] || 0; q += v * v; } e[i] = Math.sqrt(q / h); } return e; };
+    if (vpcm) {
+      const A = env(pcm), B = env(vpcm), mask = new Uint8Array(A.length);
+      for (const l of sb.lines) for (let i = Math.max(0, Math.round((l.start - 0.6) * 100)); i < Math.min(A.length, Math.round((l.end + 0.6) * 100)); i++) mask[i] = 1;
+      let best = -Infinity, bestLag = 0;
+      for (let lag = -50; lag <= 50; lag++) {
+        let sum = 0;
+        for (let i = 0; i < A.length; i++) { const j = i - lag; if (mask[i] && j >= 0 && j < B.length) sum += A[i] * B[j]; }
+        if (sum > best) { best = sum; bestLag = lag; }
+      }
+      const frames = (bestLag / 100) * fps;
+      add('sync', 'speech vs storyboard', Math.abs(frames) <= 1 ? 'pass' : Math.abs(frames) <= 2 ? 'warn' : 'fail',
+        Math.abs(frames) < 0.05 ? 'final audio matches the timed voice track exactly (0 frames)' : `final audio is ${Math.abs(frames).toFixed(1)} frame(s) ${frames > 0 ? 'late' : 'early'} against the timed voice track`);
+    } else add('sync', 'speech vs storyboard', 'warn', `${sb.audio.voice} not found — cannot compare`);
     const aDur = pcm.length / 8000;
     add('sync', 'audio vs video length', Math.abs(aDur - n / fps) <= 1.5 / fps ? 'pass' : 'warn', `audio ${aDur.toFixed(3)} s, video ${(n / fps).toFixed(3)} s`);
   } else add('sync', 'speech vs storyboard', 'info', sb.meta.estimatedTiming ? 'no voice: timing was ESTIMATED from text length' : 'no voice track');

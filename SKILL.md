@@ -1,110 +1,80 @@
 ---
 name: dialogue-animator
-description: Turn a project folder with a written dialogue (plus optional voice recordings, character notes and music) into a finished 2D character animation video — staging, camera, lip-sync, expressions, captions, music, mix and QA are automatic. Use when someone wants an animated dialogue or conversation video, a talking-characters short/reel/TikTok, "make these characters say this", or hands over a script with speaker names (dialogue.md). Works with any model or agent: plain Markdown, JSON + JSON Schema, and CLI commands.
+description: Turn a folder holding a written dialogue, plus any narration, voice recordings, character notes, sound effects and music the user has, into a finished 2D character animation video. Staging, camera, lip-sync, expressions, captions, mix and QA are automatic. Use when someone wants an animated dialogue or conversation video, a talking-characters short/reel/TikTok, a narrated animated story, "make these characters say this", or hands over a script with speaker names. Works with any model or agent: plain Markdown, JSON and CLI commands.
 ---
 
 # Dialogue Animator
 
-A project folder in, an mp4 out (default 9:16, 1080×1920, 30 fps, H.264 + AAC, −14 LUFS).
-Everything runs locally: Node 20+ and ffmpeg. No browser, no cloud, no specific model.
+A folder in, an mp4 out (default 9:16, 1080×1920, 30 fps, H.264 + AAC, −14 LUFS). Runs locally with Node 20+ and ffmpeg.
 
-`da` below means `node <this-skill-folder>/bin/da.mjs`. Every command takes the project folder as its argument.
+`da` means `node <the folder containing this file>/bin/da.mjs`.
+
+## The procedure
+
+Repeat until it prints `DONE`:
+
+1. Run `da next <project-folder>`.
+2. Do what it printed, and nothing else:
+
+| it printed | what you do |
+|---|---|
+| `RUN:` | Run that exact command. |
+| `Q1:`, `Q2:` … and `THEN RUN:` | Ask the user those questions in one message, in their language, showing each default. Put the answers into the `THEN RUN:` command and run it. If you cannot ask anyone, run the `CANNOT ASK? RUN:` command instead. |
+| `DO:` | Do what it says, usually writing a file. If that needs something only the user has, ask for it. |
+| `DONE` | Give the user the `VIDEO:` file, follow its `DO:` lines, and stop. |
+
+3. If a command fails, read its message and fix what it names (docs/TROUBLESHOOTING.md lists known failures). Then go back to step 1. If `da next` exits with code 2, the user has to do something: tell them what, and stop.
+
+You do not have to plan the pipeline or remember where you are. `da next` works it out from the folder every time and only redoes what changed. `da next <project-folder> --json` prints the same thing as JSON (`state`: run, ask, edit, fix, blocked, done; `command`; `instructions`; `answerCommand`; `defaultsCommand`).
+
+## What people can bring
+
+Everything goes into one folder. Only the script is required.
+
+| the user has | where it goes | how it works |
+|---|---|---|
+| Dialogue | `dialogue.md` | One utterance per line: `Ali: Is the tea gone?` |
+| Narration (dış anlatım) | `dialogue.md` | `Anlatıcı: It was morning.` or `Narrator: …`. For any other name add `@narrator Name` once. It is heard, nobody on screen says it. `Ali (dış ses): …` is a character who is heard but not seen speaking. |
+| Voice recordings | `audio/` | One numbered file per spoken line, narration included, in script order: `01_anlatici.wav`, `02_ali.wav`. One file for everything also works. With none, timing is estimated. |
+| Sound effects | `sfx/` | `sfx/thunder.wav` plays where the script says `@sfx thunder` (just before the next line). `@sfx thunder 12.5 -3dB` plays it at 12.5 s, 3 dB quieter. Built in, no file needed: door, bolt, clink, knock, whoosh. |
+| Music | `music/` | One file they have the rights to. It is looped, faded and ducked under speech. With none, original music is generated. |
+| Character looks | `characters/` | `ali.md` (description), `ali.png` (colours only) or `ali.json` (exact). |
+
+Scene headings, expression tags and every other format detail: docs/PROJECT_FOLDER.md.
+
+## Turning what they said into that folder
+
+Do this before the first `da next`, only for what applies.
+
+| if the user… | then you… |
+|---|---|
+| names a folder | use it. If they name none, create one in the current directory, named after the story. |
+| pastes a script | write it to `dialogue.md` word for word, adding only the `Name:` format. A script alone is enough: start the procedure and it asks for whatever else it needs. |
+| gives a script with no speaker names | ask who says each line. Never guess. |
+| wants the folders prepared, or has files to add | run `da init <project-folder>`. It makes `audio/`, `sfx/`, `music/`, `characters/` and a README.txt, and leaves any script alone. Tell them what goes where and wait until they say the files are in. |
+| writes narration as plain paragraphs | put `Anlatıcı:` before each paragraph. A line with no name continues the previous speaker. |
+| gives a timed flow (`0–5 sn — Kapı kapanır.`) | keep those lines unchanged in `dialogue.md`. They place the speech in time and act out the directions: sitting, standing, a door, a bolt, a fade to black. |
+| gives audio, effects or music | copy them to `audio/`, `sfx/`, `music/`, numbering voice files in script order. To leave a folder where it is: `da answer <project-folder> --audio-dir <folder>` (also `--sfx-dir`, `--music-dir`). |
+| wants a sound you have no file for | use a built-in if one fits, otherwise ask for the file. Never swap in a different sound without saying so. |
+| describes a character | write it to `characters/<id>.md` in their words. Better, if you can: `<id>.json` (docs/CHARACTERS.md). |
+| asks for a look | `da styles` lists them. A new look: docs/STYLE_PACK.md. |
+| asks for a change after seeing the video | change `dialogue.md`, `characters/` or the audio, or use `da answer`, then run `da next` again. Do not edit `build/`. |
 
 ## Rules
-- Follow the steps in order. Every step is a command; read its output, fix what it reports, then move on.
-- Never invent the user's audio, and never claim a timing is exact when the output says **ESTIMATED**.
+- Never invent or reword the user's script, and never make up audio. No script means asking for one.
+- Whenever the output says the timing is ESTIMATED, tell the user.
 - Keep the look original. Do not imitate an existing channel, show, brand or character, even on request; offer a new style pack instead.
 - Only the user's own files, the bundled OFL fonts and code-generated art and music go into the video.
-- Details live in `docs/`. Open them only when a step points you there.
 
-## Pipeline
+## Optional, if you are able to
+- See images: run `da stills <project-folder>` before the render step and open `build/stills/sheet.png`; after QA, open `build/qa/shots.png` and use the checklist in docs/QA.md.
+- Skip the loop when every default is fine: `da make <project-folder>` runs the whole pipeline without questions.
+- If your agent can start a sub-agent, it may review those images independently. This is optional.
 
-**0. Check the machine and the folder**
-Run `da doctor <project>`. Fix every ✖ using the `fix:` line under it. An empty folder makes doctor print the required layout; `da init <project>` creates a starter project.
-
-**1. Decide (ask at most 5 short questions, each with a default)**
-Ask only what `project.json` does not already answer:
-1. Style: `kesik-kagit` (default), `jole` or `riso-cizgi`. Run `da styles` to list them; `styles/<id>/preview/sheet.png` shows each one.
-2. Format: 9:16 (default) or 16:9.
-3. Captions: `word` (default; one word at a time), `line`, `bubble`, or `none`.
-4. Music: their own file in `music/`, `synth` (default; original music generated by code), or `none`.
-5. Characters: describe them (appearance, colour, personality, accessories) or let them be generated from the dialogue (default).
-
-Write the answers to `project.json` (schema: `schemas/project.schema.json`). If you cannot ask, keep the defaults. Every command records what it assumed in `build/decisions.md`; put that table in your report. See docs/QUESTIONS.md.
-
-**2. Parse the dialogue**
-Run `da parse <project>`, which writes `build/dialogue.json` and prints the expressions it guessed.
-You may improve `emotion` and `gesture` per line in that file. Allowed values are listed in `schemas/dialogue.schema.json`. Do not change the text.
-
-**3. Cast the characters**
-Run `da cast <project>`, which writes `build/characters.json`.
-- If the user described characters in words, write `characters/<id>.json` yourself, following `schemas/character.schema.json` (docs/CHARACTERS.md). You will do this better than the keyword reader.
-- If they gave an image you can see, describe it into that JSON as well. Otherwise only its colours are used.
-
-**4. Time the voice**
-Run `da align <project>`, which writes `build/timing.json` and `build/voice.wav`. Sources, best first:
-1. `words.json`
-2. one audio file per line (`audio/01_name.wav` …), which is the most reliable
-3. one file plus whisper
-4. one file plus silence detection
-5. no audio, where timing is estimated
-
-Report the source it printed. `"voice": "babble"` in project.json synthesizes a playful gibberish voice per line. See docs/AUDIO.md.
-
-**5. Direct the scenes**
-Run `da board <project>`, which writes `build/storyboard.json`. It prints one row per shot (type, subject, reason) plus rhythm warnings.
-Fix warnings by editing `build/dialogue.json` or `project.json` → `director`, then run board again. The rules are in docs/DIRECTING.md.
-
-**6. Look before rendering the whole video**
-Run `da stills <project>`, which renders one frame per shot to `build/stills/` plus `sheet.png`. Look at the sheet if you can see images. If you cannot, rely on step 9's layout checks.
-For a single moment: `da stills <project> --t 4.2 --scale 1`. To compare before and after: `da compare --a old.png --b new.png --out cmp.png`.
-
-**7. Render the picture**
-Run `da render <project>`, which writes `build/video.mp4`.
-- Frames stream straight into ffmpeg, so no frame folders are written. Parallel segments go to `build/tmp/` and are deleted.
-- Use `--scale 0.5` for drafts and `--workers N` for speed.
-
-**8. Sound**
-Run `da mix <project>`, which writes `out/<title>.mp4`. Music is ducked under speech (sidechaincompress) and the mix is normalized to −14 LUFS with two-pass loudnorm, true peak ≤ −1 dBTP.
-
-**9. QA (every model can do this, no vision needed)**
-Run `da qa <project>`, which writes `build/qa/report.md`. Fix every FAIL; explain or fix every WARN.
-It checks:
-- specs
-- black, white and frozen frames, and unplanned pops
-- loudness and true peak
-- audio/storyboard sync (cross-correlation lag in frames)
-- captions inside the safe area and off faces
-- speaker faces cut by the frame edge
-- shot rhythm
-
-If you can see images, also review `build/qa/shots.png` and `build/qa/sheets/` against this checklist:
-- [ ] Text readable at phone size; nothing overflows or is cut off
-- [ ] No face cut by the frame edge; no caption over a face
-- [ ] Mouths move only while that character speaks
-- [ ] Each cut has a reason (speaker change, reaction, cutaway); no identical shots back to back
-- [ ] Reactions start just before the word they react to
-- [ ] Music never covers the voice; the ending is not clipped
-
-If your agent can start a sub-agent, it may give that sub-agent this checklist and the two images as an extra, independent reviewer. This is optional.
-
-**10. Deliver**
-Hand over `out/<title>.mp4`, the decisions table, the QA verdict and any ESTIMATED timing note. `da clean <project>` frees `build/tmp`; `--all` removes `build/`.
-
-**One command:** `da make <project>` runs steps 0 and 2–9 non-interactively. Use it after step 1, or alone to accept every default.
-
-## When something goes wrong
-Check docs/TROUBLESHOOTING.md first. It is a growing list of real failures and their fixes. When you hit a new one, add it there in the same format.
-
-## Docs
-- PROJECT_FOLDER: the input format
-- QUESTIONS
-- CHARACTERS
-- DIRECTING
-- AUDIO
-- STYLE_GUIDE: measurable look rules
-- STYLE_PACK: write your own style
-- STORYBOARD_SCHEMA
-- RENDERERS: Node, Playwright, preview page, adapters
-- QA
-- TROUBLESHOOTING
+## Docs (open one only when you need it)
+- docs/PROJECT_FOLDER.md: input formats
+- docs/QUESTIONS.md: every setting and default
+- docs/CHARACTERS.md, docs/DIRECTING.md, docs/AUDIO.md
+- docs/STYLE_GUIDE.md, docs/STYLE_PACK.md: the look, and writing your own
+- docs/STORYBOARD_SCHEMA.md, docs/RENDERERS.md: internals
+- docs/QA.md, docs/TROUBLESHOOTING.md: checks and known failures (add new ones there)

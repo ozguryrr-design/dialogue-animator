@@ -34,8 +34,12 @@ export function createEnv(sb, style, { createCanvas, hooks = null } = {}) {
     body: bodies[style.character?.body] || body,
     chars: Object.fromEntries(sb.characters.map((c) => [c.id, c])),
     scenes: Object.fromEntries(sb.scenes.map((s) => [s.id, s])),
-    idx: { expr: by('expression'), gesture: by('gesture'), look: by('look'), fx: (sb.events || []).filter((e) => e.type === 'fx'), shake: (sb.events || []).filter((e) => e.type === 'shake'), punch: (sb.events || []).filter((e) => e.type === 'punch') },
-    linesBy: (() => { const m = {}; for (const l of sb.lines) (m[l.speaker] ||= []).push(l); return m; })(),
+    idx: {
+      expr: by('expression'), gesture: by('gesture'), look: by('look'), posture: by('posture'), prop: by('prop'),
+      fx: (sb.events || []).filter((e) => e.type === 'fx'), shake: (sb.events || []).filter((e) => e.type === 'shake'),
+      punch: (sb.events || []).filter((e) => e.type === 'punch'), fade: (sb.events || []).filter((e) => e.type === 'fade'),
+    },
+    linesBy: (() => { const m = {}; for (const l of sb.lines) if (!l.voiceOver) (m[l.speaker] ||= []).push(l); return m; })(),
     createCanvas,
     cache: {},
   };

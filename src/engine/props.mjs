@@ -1,6 +1,9 @@
 // Prop geometry as shape specs with colour ROLES (resolved by the style palette). Origin = bottom centre,
 // up is negative y. Every prop returns { items, w, h } so the director can frame cutaway inserts on it.
-import { arcPts, circlePts } from './shapes.mjs';
+import { arcPts, circlePts, quadPts } from './shapes.mjs';
+
+const quad = (a, c, b) => quadPts(a, c, b, 8).slice(1);
+const arcRange = (x, y, r, a0, a1, n) => arcPts(x, y, r, a0, a1, n);
 
 const R = (x, y, w, h, fill, r = 0, extra = {}) => ({ k: 'rrect', x, y, w, h, r, fill, ...extra });
 const C = (x, y, r, fill, extra = {}) => ({ k: 'circle', x, y, r, fill, ...extra });
@@ -88,6 +91,52 @@ export const PROPS = {
   cake: () => ({ w: 260, h: 260, items: [R(-120, -150, 240, 150, 'accent3', 20), R(-120, -170, 240, 50, 'light', 22), C(-60, -170, 18, 'accent1'), C(0, -175, 18, 'accent1'), C(60, -170, 18, 'accent1'), S([[0, -190], [0, -250]], 14, 'accent2'), E(0, -262, 12, 18, 'accent1')] }),
   umbrella: () => ({ w: 360, h: 420, items: [S([[0, -330], [0, -30]], 14, 'dark'), S(arcPts(-24, -30, 24, 0, Math.PI, 8), 14, 'dark'), P([...arcPts(0, -300, 180, Math.PI, Math.PI * 2, 18)], 'accent3')] }),
   rug: (o = {}) => ({ w: o.w || 900, h: 60, items: [E(0, 40, (o.w || 900) / 2, 60, 'accent1', { noShadow: true })] }),
+  // pointed-arch window; at night (default) the glass is dark with a small moon
+  arch: (o = {}) => {
+    const w = o.w || 260, h = o.h || 520, top = -h, sh = -h * 0.72;
+    const outer = [[-w / 2, 0], [-w / 2, sh], ...quad([-w / 2, sh], [-w / 2, top + h * 0.05], [0, top]), ...quad([0, top], [w / 2, top + h * 0.05], [w / 2, sh]), [w / 2, 0]];
+    const iw = w * 0.74, ih = h * 0.9, isd = -ih * 0.72;
+    const inner = [[-iw / 2, -h * 0.05], [-iw / 2, isd], ...quad([-iw / 2, isd], [-iw / 2, -ih + ih * 0.06], [0, -ih]), ...quad([0, -ih], [iw / 2, -ih + ih * 0.06], [iw / 2, isd]), [iw / 2, -h * 0.05]];
+    const items = [P(outer, o.frame || 'accent2'), P(inner, o.glass || 'dark', { noShadow: true })];
+    if (o.moon) items.push(C(iw * 0.12, -ih * 0.68, w * 0.11, 'light', { noShadow: true }));
+    items.push(S([[0, -ih], [0, -h * 0.05]], 8, o.frame || 'accent2', { noShadow: true }), S([[-iw / 2, isd * 0.7], [iw / 2, isd * 0.7]], 8, o.frame || 'accent2', { noShadow: true }));
+    items.push(R(-w / 2 - 16, -14, w + 32, 22, 'accent1', 4));
+    return { w, h, items };
+  },
+  kandil: () => ({ w: 140, h: 520, items: [
+    C(0, -110, 120, 'accent1', { noShadow: true, alpha: 0.18 }), C(0, -110, 70, 'accent1', { noShadow: true, alpha: 0.25 }),
+    S([[0, -520], [0, -170]], 6, 'dark'), P([[-60, -170], [60, -170], [36, -60], [-36, -60]], 'accent1'), C(0, -60, 22, 'light'), C(0, -120, 14, 'light', { noShadow: true }),
+  ] }),
+  divan: (o = {}) => {
+    const w = o.w || 1600, n = Math.max(3, Math.round(w / 260)), items = [R(-w / 2, -260, w, 260, 'accent3', 18)];
+    for (let i = 0; i < n; i++) { const x = -w / 2 + (i + 0.5) * (w / n); items.push(R(x - w / n / 2 + 14, -420, w / n - 28, 190, i % 2 ? 'accent1' : 'wall2', 40)); }
+    return { w, h: 420, items };
+  },
+  // low dining table seen from the front; seated characters sink behind it
+  sofra: (o = {}) => {
+    // a long low table under a dark cloth with a gold border; quiet enough to sit under close-ups
+    // the cloth reaches past the floor line so the lap and feet of seated people stay hidden
+    const w = o.w || 1400, h = o.h || 200, items = [R(-w / 2, -h, w, h + (o.drop ?? 240), 'dark', 18)];
+    items.push(R(-w / 2 + 24, -h + 34, w - 48, 14, 'accent1', 7, { noShadow: true }));
+    for (let x = -w / 2 + 90; x < w / 2 - 60; x += 150) items.push(P([[x, -h + 84], [x + 22, -h + 108], [x, -h + 132], [x - 22, -h + 108]], 'accent3', { noShadow: true }));
+    items.push(R(-w / 2 - 24, -h - 30, w + 48, 44, 'accent1', 20));
+    return { w, h, items };
+  },
+  bowl: () => ({ w: 150, h: 80, items: [P([...arcRange(0, -54, 75, 0, Math.PI, 12)], 'accent2'), E(0, -54, 75, 16, 'light')] }),
+  // double door; opts.open: 1 = wide open (dark doorway), 0 = shut
+  door: (o = {}) => {
+    const w = o.w || 360, h = o.h || 700, open = Math.max(0, Math.min(1, o.open ?? 0));
+    const items = [R(-w / 2 - 30, -h - 30, w + 60, h + 30, 'dark', 10), R(-w / 2, -h, w, h, 'ink', 4, { noShadow: true })];
+    const pw = (w / 2) * (1 - 0.86 * open);
+    for (const side of [-1, 1]) {
+      const hx = side * (w / 2), x0 = side < 0 ? hx : hx - pw;
+      items.push(R(x0, -h, pw, h, 'accent3', 6));
+      if (pw > 30) items.push(R(x0 + pw * 0.15, -h * 0.85, pw * 0.7, h * 0.32, 'accent1', 6, { noShadow: true, alpha: 0.5 }), R(x0 + pw * 0.15, -h * 0.45, pw * 0.7, h * 0.32, 'accent1', 6, { noShadow: true, alpha: 0.5 }));
+      if (open < 0.08) items.push(C(side * 26, -h * 0.5, 10, 'accent1'));
+    }
+    if (open < 0.02) items.push(R(-60, -h * 0.55, 120, 22, 'accent1', 6)); // the bolt, shot home
+    return { w, h, items };
+  },
   'hanging-lamp': () => ({ w: 200, h: 600, items: [S([[0, -600], [0, -130]], 8, 'dark'), P([[-100, 0], [100, 0], [50, -130], [-50, -130]], 'accent1')] }),
 };
 

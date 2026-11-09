@@ -7,6 +7,9 @@
 4. **One voice file, no whisper**: speech segments are found by silence detection (≥ 0.25 s at −24 dB below the speech level). They are merged or split until there is one per line, guided by the expected length of each line.
 5. **No audio**: line durations are **estimated** at `timing.speechRate` (4.6 syllables/s) plus small punctuation pauses. Every report and the QA say "ESTIMATED". The video has no voice, so captions are switched on.
 
+### Timed beats
+When the dialogue has beats (`0–5 sn — …`), every line is placed inside its beat's window instead of back to back. With **one recording**, the file is cut into one clip per line first: whisper word times (or `words.json`) are aligned to the script, and cut points are put at the quietest moment between two lines. The clips are then placed into the windows, so a 15 s recording can fill a 30 s timed script with its pauses. Per-line files are placed the same way. Without audio, estimated durations are placed.
+
 Install whisper (optional): `pip install faster-whisper`. The first run downloads the model (≈150 MB for `base`). Choose another with `timing.whisperModel`.
 
 ## Mouth
@@ -20,11 +23,19 @@ Install whisper (optional): `pip install faster-whisper`. The first run download
 - `synth` (default): `src/audio/music.mjs` writes an original piece from code and a seed. It has a pad, bass, a plucked lead (kalimba, marimba, bell or synth, chosen by the style pack), light percussion, an intro bar and an ending on the tonic. Mood, tempo and scale come from the style pack (`music`) or `project.json`. It uses no samples and no third-party material, so it falls under this repository's MIT licence.
 - `none`.
 
+## Sound effects
+Two kinds, mixed the same way: `da mix` renders them into `build/sfx.wav` at `mix.sfxDb` (default 0). They are not ducked, because they are part of the action.
+
+- **Yours:** any file in `sfx/` (or `"sfxDir"`), cued in the script with `@sfx name [time] [±NdB]` (docs/PROJECT_FOLDER.md). Each file is peak-matched first, then the cue's gain applies.
+- **Built-in:** `src/audio/sfx.mjs` synthesizes `door`, `bolt`, `clink`, `knock` and `whoosh` from code (no samples). You can cue them yourself, and the director places them from beat actions.
+
+A file named after a built-in replaces it everywhere, including in beat actions. Without a time, a cue plays 0.15 s before the next line.
+
 ## Mix chain (src/audio/mix.mjs)
 1. Measure each stem with ebur128. Voice gain → −16 LUFS; music gain → voice + `mix.musicDb` (−13 dB).
-2. Music: fade in 0.5 s, fade out 1.8 s, padded or trimmed to the exact video length.
+2. Music: fade in 0.5 s, fade out over the last 1.8 s. With a fade to black in the picture, the music fades out together with it. Padded or trimmed to the exact video length.
 3. **Ducking**: `sidechaincompress` keyed by the voice (threshold 0.015, ratio ≈ 1 + |duckDb|/2, attack 20 ms, release 320 ms).
-4. `amix` (no normalization) → two-pass `loudnorm` (I = −14 LUFS, TP = −2 dBTP, LRA = 11, linear) → 48 kHz.
+4. `amix` of voice, ducked music and sound effects (no normalization). If the voice is very dynamic (peak-to-loudness above what −14 LUFS / −2 dBTP allows), a look-ahead `alimiter` shaves just the excess peaks first; the mix reports by how many dB. Then two-pass `loudnorm` (I = −14 LUFS, TP = −2 dBTP, LRA = 11, linear) → 48 kHz.
 5. If the true peak is still above target, the whole mix is turned down (AAC adds about 0.3 dB).
 6. Mux: video stream copied, AAC 192 kb/s 48 kHz, exact duration.
 

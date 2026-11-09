@@ -5,12 +5,12 @@
 | group | check | pass when |
 |---|---|---|
 | specs | video stream, audio stream, duration | resolution and fps match the storyboard; AAC 48 kHz; duration within 2 frames |
-| frames | black frames | no frame with mean luma < 0.04 |
+| frames | black frames | no frame with mean luma < 0.04 before a planned fade to black |
 | | white frames | none with mean luma > 0.94 outside planned transitions |
 | | frozen spans | no run of ≥ 12 identical frames (mean RGB difference < 0.02); every hold must creep |
-| | unplanned pops | no frame difference above max(10, 4× local median + 3) outside cuts, transitions, expression changes and gestures |
+| | unplanned pops | no frame difference above max(10, 4× local median + 3) outside cuts, transitions, expression/gesture/posture/prop events, fades, and captions appearing or disappearing |
 | audio | loudness / true peak / silences | −14 ± 1 LUFS; ≤ −1 dBTP; no silence longer than 2 s |
-| sync | speech vs storyboard | the cross-correlation between the final audio's envelope and the storyboard's line intervals peaks at a lag within ±1 frame |
+| sync | speech vs storyboard | the final audio matches the voice track the storyboard was timed to (`build/voice.wav`) within ±1 frame. This uses 10 ms envelopes, cross-correlated only inside ±0.6 s windows around the lines, so sparse dialogue, music beds and sound effects cannot fool it. |
 | | audio vs video length | within 1.5 frames |
 | layout | captions in safe area | the caption box stays 4 % inside every edge in every frame |
 | | captions off faces | no caption box covers a visible face circle |
@@ -23,7 +23,7 @@ The layout checks need no pixels: they use the same geometry the renderer uses (
 Review `shots.png` and the sheets:
 - [ ] Text readable at phone size; nothing cut off or overflowing
 - [ ] No face cut by the frame edge; no caption over a face
-- [ ] Mouths move only while that character speaks
+- [ ] Mouths move only while that character speaks (not during narration or their own off-screen lines)
 - [ ] Each cut is motivated; no identical shots back to back
 - [ ] Reactions land just before their word
 - [ ] Music never covers the voice; the ending is not clipped

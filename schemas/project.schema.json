@@ -5,75 +5,223 @@
   "description": "Answers to the skill's questions. Every field is optional; missing fields use the defaults listed in docs/QUESTIONS.md.",
   "type": "object",
   "properties": {
-    "$schema": { "type": "string" },
-    "title": { "type": "string" },
-    "style": { "type": "string", "description": "Style pack id (kesik-kagit, jole, riso-cizgi) or a path to a folder with style.json." },
-    "format": { "enum": ["9:16", "16:9", "1:1", "4:5"] },
-    "width": { "type": "integer", "minimum": 240, "maximum": 4096 },
-    "fps": { "enum": [24, 25, 30, 50, 60] },
-    "captions": { "enum": ["none", "word", "line", "bubble"] },
+    "$schema": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "style": {
+      "type": "string",
+      "description": "Style pack id (kesik-kagit, jole, riso-cizgi) or a path to a folder with style.json."
+    },
+    "format": {
+      "enum": [
+        "9:16",
+        "16:9",
+        "1:1",
+        "4:5"
+      ]
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 240,
+      "maximum": 4096
+    },
+    "fps": {
+      "enum": [
+        24,
+        25,
+        30,
+        50,
+        60
+      ]
+    },
+    "captions": {
+      "enum": [
+        "none",
+        "word",
+        "line",
+        "bubble"
+      ]
+    },
     "music": {
       "anyOf": [
-        { "enum": ["synth", "own", "none"] },
+        {
+          "enum": [
+            "synth",
+            "own",
+            "none"
+          ]
+        },
         {
           "type": "object",
           "properties": {
-            "mode": { "enum": ["synth", "own", "none"] },
-            "file": { "type": "string" },
-            "volumeDb": { "type": "number" },
-            "tempo": { "type": "number" },
-            "mood": { "enum": ["warm", "playful", "calm", "tense"] }
+            "mode": {
+              "enum": [
+                "synth",
+                "own",
+                "none"
+              ]
+            },
+            "file": {
+              "type": "string"
+            },
+            "volumeDb": {
+              "type": "number"
+            },
+            "tempo": {
+              "type": "number"
+            },
+            "mood": {
+              "enum": [
+                "warm",
+                "playful",
+                "calm",
+                "tense"
+              ]
+            }
           }
         }
       ]
     },
     "voice": {
-      "enum": ["auto", "babble", "none"],
+      "enum": [
+        "auto",
+        "babble",
+        "none"
+      ],
       "description": "auto = use audio/ when present; babble = synthesize a gibberish voice per character; none = silent (timing estimated)."
     },
     "characters": {
       "type": "object",
       "properties": {
-        "describe": { "type": "boolean", "description": "true when the user described the characters (characters/ folder); false = generate them from the dialogue." },
-        "overrides": { "type": "object", "description": "Per-character partial objects merged over the generated ones, keyed by character id." }
+        "describe": {
+          "type": "boolean",
+          "description": "true when the user described the characters (characters/ folder); false = generate them from the dialogue."
+        },
+        "overrides": {
+          "type": "object",
+          "description": "Per-character partial objects merged over the generated ones, keyed by character id."
+        }
       }
     },
     "timing": {
       "type": "object",
       "properties": {
-        "wordTiming": { "enum": ["auto", "whisper", "estimate"] },
-        "whisperModel": { "type": "string" },
-        "leadIn": { "type": "number", "minimum": 0, "maximum": 5 },
-        "tail": { "type": "number", "minimum": 0, "maximum": 10 },
-        "gap": { "type": "number", "minimum": 0, "maximum": 5 },
-        "trimSilence": { "type": "boolean" },
-        "speechRate": { "type": "number", "minimum": 1, "maximum": 10, "description": "Syllables per second used when timing has to be estimated." }
+        "wordTiming": {
+          "enum": [
+            "auto",
+            "whisper",
+            "estimate"
+          ]
+        },
+        "whisperModel": {
+          "type": "string"
+        },
+        "leadIn": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "tail": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "gap": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "trimSilence": {
+          "type": "boolean"
+        },
+        "speechRate": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Syllables per second used when timing has to be estimated."
+        }
       }
     },
-    "language": { "type": "string" },
-    "seed": { "type": "integer" },
-    "output": { "type": "string" },
+    "language": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "output": {
+      "type": "string"
+    },
     "quality": {
       "type": "object",
-      "properties": { "crf": { "type": "integer", "minimum": 0, "maximum": 51 }, "preset": { "type": "string" } }
+      "properties": {
+        "crf": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 51
+        },
+        "preset": {
+          "type": "string"
+        }
+      }
     },
     "mix": {
       "type": "object",
       "properties": {
-        "lufs": { "type": "number", "minimum": -30, "maximum": -8 },
-        "truePeak": { "type": "number", "minimum": -9, "maximum": 0 },
-        "musicDb": { "type": "number", "description": "Music bed level relative to the voice, in dB (negative)." },
-        "duckDb": { "type": "number", "description": "Extra music reduction while someone speaks, in dB (negative)." }
+        "lufs": {
+          "type": "number",
+          "minimum": -30,
+          "maximum": -8
+        },
+        "truePeak": {
+          "type": "number",
+          "minimum": -9,
+          "maximum": 0
+        },
+        "musicDb": {
+          "type": "number",
+          "description": "Music bed level relative to the voice, in dB (negative)."
+        },
+        "duckDb": {
+          "type": "number",
+          "description": "Extra music reduction while someone speaks, in dB (negative)."
+        },
+        "sfxDb": {
+          "type": "number",
+          "description": "Sound-effect level relative to the voice, in dB."
+        }
       }
     },
     "director": {
       "type": "object",
       "properties": {
-        "minShot": { "type": "number" },
-        "maxShot": { "type": "number" },
-        "cutaways": { "type": "boolean" },
-        "reactions": { "type": "boolean" }
+        "minShot": {
+          "type": "number"
+        },
+        "maxShot": {
+          "type": "number"
+        },
+        "cutaways": {
+          "type": "boolean"
+        },
+        "reactions": {
+          "type": "boolean"
+        }
       }
+    },
+    "audioDir": {
+      "type": "string",
+      "description": "Folder (relative to the project) that holds the voice files. Default: audio"
+    },
+    "musicDir": {
+      "type": "string",
+      "description": "Folder that holds the music file. Default: music"
+    },
+    "sfxDir": {
+      "type": "string",
+      "description": "Folder with your sound effect files. Default: sfx"
     }
   }
 }

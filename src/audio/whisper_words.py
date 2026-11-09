@@ -23,7 +23,8 @@ def main():
     for seg in segments:
         for w in seg.words or []:
             words.append({"word": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3)})
-    print(json.dumps({"language": info.language, "words": words}, ensure_ascii=False))
+    # ASCII-escaped JSON: immune to the console code page on Windows (cp1254 would garble ğ, ş, ı ...)
+    print(json.dumps({"language": info.language, "words": words}, ensure_ascii=True))
 
 
 if __name__ == "__main__":

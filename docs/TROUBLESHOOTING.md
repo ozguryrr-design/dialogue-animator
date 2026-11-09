@@ -32,6 +32,26 @@ A growing list of real failures met while building and using this skill. When yo
 21. **"Unplanned pop" right after an expression change**: the style's squash is intentional. QA treats expression, gesture, punch and shake frames as planned. A pop elsewhere is a real bug.
 22. **Characters on twos (15 fps) look frozen**: they are not. The camera still moves every frame; the frozen check only fires on ≥ 12 identical frames.
 
+## Found in the first real-user test (timed historical scene, one ElevenLabs recording)
+25. **Turkish words from whisper come out as `�` on Windows**: Python printed JSON in the console code page (cp1254). The helper now prints ASCII-escaped JSON and runs with `PYTHONIOENCODING=utf-8`. Before the fix, 0 of 28 words matched; after it, 28 of 28.
+26. **A 15 s recording, a 30 s script**: a single file used to keep its own timeline. With beats it is now cut into line clips at the quietest points between lines and placed into the windows.
+27. **"Audio 5 frames early" although the voice was exact**: correlating the whole mix with binary line intervals breaks with sparse dialogue plus loud effects (door, bolt). QA now compares the final audio with the timed voice track, around the lines only.
+28. **Loudness stuck at −15.2 LUFS**: a dynamic voice has more crest than linear loudnorm allows at −2 dBTP. A look-ahead limiter now trims the excess peaks first (3.9 dB in that test), then the mix reaches −14.
+29. **Captions disappearing were reported as "pops"**: caption on/off frames are planned changes now.
+30. **Brown beard turned teal** (palette snap with avoidance): hair snapping now penalises far hues instead of excluding used colours outright.
+31. **"Süleyman gözünü İbrahim'den ayırmaz" did nothing**: a name sat between the words of the stem. Single-word stems (`ayirmaz`) are matched too, and the subject is the name that appears first.
+32. **Seated characters showed their robe hems and shoes under the table**: the table cloth now reaches past the floor line.
+33. **A turban covered a third of a close-up**: the turban dome was scaled down so it sits above the highest brow position.
+34. **A beat line without a direction ("5–10 sn") crashed the parser**: fixed. Covered by a test.
+35. **A narrator turned into a character on screen**: names like Anlatıcı, Narrator or anything declared with `@narrator` are heard only. A plain name that never appears in `@cast` and speaks only with `(dış ses)` is treated the same way. If a real character disappeared, add `@cast Name` to the scene.
+36. **Narration written as a plain paragraph vanished into the previous speaker's line**: a line without `Name:` continues the previous line. Put `Anlatıcı:` in front of it.
+37. **"sound effect not found"**: the name after `@sfx` must match a file in `sfx/` or a built-in. `da next` stops before rendering so it cannot be missed.
+38. **A recording was not used**: per-line files are matched by their leading number, counting narration lines too. A file with no number or a number with no line is now reported by `align`.
+39. **Half a second of nothing at the start of a scene**: dropping a very short first shot left a hole before the next one. The first shot now always starts with the scene.
+40. **`@sfx name -6dB` made no difference when it was the only cue**: the effects track was normalized after the gains. The level is now set from the mix at 0 dB.
+41. **`da init` refused a folder that already had a script**, so someone with only a dialogue could not get the folders prepared. It now creates what is missing and leaves the script alone. It also no longer writes a sample script unless you pass `--sample`, because an agent could have turned that sample into your video.
+42. **"has no Name: text lines"**: every spoken line needs its speaker in front (`Ali: Merhaba.`). If the script does not say who speaks, the agent has to ask.
+
 ## Repository / tooling
 23. **`spawnSync` fails with a negative `maxBuffer`** when the buffer size is computed as `1 << 31` (overflows to negative in JavaScript). Use `2 ** 32`.
 24. **Concat list paths on Windows**: write them with forward slashes and single quotes for ffmpeg's concat demuxer.

@@ -10,7 +10,7 @@ export function characterTime(t, env) {
 }
 
 export function speakerAt(sb, t) {
-  for (const l of sb.lines) if (t >= l.start - 0.05 && t <= l.end + 0.05) return l.speaker;
+  for (const l of sb.lines) if (!l.voiceOver && t >= l.start - 0.05 && t <= l.end + 0.05) return l.speaker;
   return null;
 }
 
@@ -18,6 +18,22 @@ export function facingAt(env, ch, scene, t) {
   const looks = env.idx.look[ch.id];
   if (looks) { let d = null; for (const e of looks) if (e.t <= t) d = e.value; if (d === -1 || d === 1) return d; }
   return scene.facing?.[ch.id] ?? 1;
+}
+
+/** Seated characters sink this fraction of their height (behind a table in front of them). */
+export const SIT_DROP = 0.2;
+
+/** Vertical offset (stage units, + = down) from sitting/standing at time t, plus 0..1 progress of a change. */
+export function postureAt(env, ch, scene, t, height) {
+  const H = height ?? 900 * (ch.body?.height || 1);
+  let v = scene.posture?.[ch.id] === 'sit' ? 1 : 0, change = 0;
+  for (const e of env.idx.posture?.[ch.id] || []) {
+    if (t < e.t) break;
+    const to = e.value === 'sit' ? 1 : 0, u = ease.smoother(clamp((t - e.t) / (e.dur || 1)));
+    if (u < 1) change = Math.sin(Math.PI * u);
+    v = v + (to - v) * u;
+  }
+  return { y: v * SIT_DROP * H, change };
 }
 
 export function characterState(env, ch, scene, t) {
@@ -78,5 +94,7 @@ export function characterState(env, ch, scene, t) {
   }
   const breath = Math.sin(TAU * (M.breathHz || 0.3) * tc + (seed % 11));
   const sway = M.swayDeg ? (M.swayDeg * Math.PI / 180) * Math.sin(TAU * 0.25 * tc + (seed % 5)) : 0;
-  return { dir, expr, mouth, talking, blink, pose, breath, headTilt, squash, sway, tc };
+  const posture = postureAt(env, ch, scene, tc);
+  if (posture.change) pose.lean += 0.09 * posture.change; // lean forward while getting up or sitting down
+  return { dir, expr, mouth, talking, blink, pose, breath, headTilt, squash, sway, tc, postureY: posture.y };
 }
